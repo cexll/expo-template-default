@@ -7,10 +7,17 @@
     "icon": "./assets/images/icon.png",
     "scheme": "helloworld",
     "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
     "ios": {
-      "icon": "./assets/expo.icon"
+      "bundleIdentifier": "com.helloworld.app",
+      "supportsTablet": true,
+      "icon": "./assets/expo.icon",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.helloworld.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -20,8 +27,15 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
+      "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "name": "HelloWorld",
+      "shortName": "HelloWorld",
+      "description": "A cross-platform app built with Expo",
+      "lang": "en",
+      "themeColor": "#208AEF",
+      "backgroundColor": "#ffffff"
     },
     "plugins": [
       "expo-router",
