@@ -45,10 +45,11 @@
 ├── app.json                 # Expo 应用配置（图标、名称、平台参数）
 ├── eas.json                 # EAS Build / Submit 配置
 ├── metro.config.js          # Metro bundler 配置
-├── babel.config.js          # Babel 编译配置
 ├── eslint.config.js         # ESLint 代码检查配置
 ├── tsconfig.json            # TypeScript 配置
 ├── package.json             # 依赖与脚本
+├── .eas/workflows/          # EAS 工作流模板
+├── .github/workflows/       # GitHub CI
 ├── public/                  # Web 静态资源（PWA 文件）
 │   ├── manifest.json        # PWA Web App Manifest
 │   ├── sw.js                # Service Worker
@@ -57,11 +58,14 @@
 │   ├── app/                 # 页面路由（Expo Router 文件路由）
 │   │   ├── _layout.tsx      # 根布局
 │   │   ├── +html.tsx        # Web HTML 模板（PWA meta 注入）
-│   │   ├── index.tsx        # 首页
-│   │   └── explore.tsx      # 探索页
+│   │   ├── api/             # API Routes
+│   │   ├── (tabs)/          # 四主 tab 页面
+│   │   └── entry/           # 二级详情页
 │   ├── components/          # 可复用组件
 │   ├── constants/           # 常量（主题等）
+│   ├── config/              # 应用级环境变量与配置入口
 │   ├── hooks/               # 自定义 Hooks
+│   ├── lib/                 # API 与基础设施工具
 │   └── types/               # TypeScript 类型声明
 ├── assets/                  # 图片、图标、字体等静态资源
 ├── ios/                     # iOS 原生项目（prebuild 生成，已 gitignore）

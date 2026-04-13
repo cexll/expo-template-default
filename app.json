@@ -30,7 +30,7 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
+      "output": "server",
       "favicon": "./assets/images/favicon.png",
       "name": "HelloWorld",
       "shortName": "HelloWorld",
@@ -40,7 +40,10 @@
       "backgroundColor": "#ffffff"
     },
     "plugins": [
-      "expo-router",
+      [
+        "expo-router",
+        {}
+      ],
       [
         "expo-splash-screen",
         {
