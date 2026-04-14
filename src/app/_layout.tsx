@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
-import React, { useEffect } from 'react';
-import { LogBox, Platform } from 'react-native';
+import React from 'react';
+import { Platform } from 'react-native';
 import { AppErrorBoundary } from '@/components/app-error-boundary';
 import { AuthGuard } from '@/components/AuthGuard';
 import { AppProviders } from '@/providers/app-providers';
@@ -8,50 +8,36 @@ import '@/global.css';
 
 export { AppErrorBoundary as ErrorBoundary };
 
-export default function RootLayout() {
-  useEffect(() => {
-    if (!__DEV__ || Platform.OS !== 'web') return;
+function installUnexpectedTextNodeConsoleFilter() {
+  // react-native-web logs this warning synchronously while rendering <View />, so we must
+  // install the filter at module-eval time to catch the initial render.
+  if (process.env.NODE_ENV === 'test') return;
+  if (typeof window === 'undefined') return;
+  if (!__DEV__ || Platform.OS !== 'web') return;
 
-    LogBox.ignoreLogs([
-      'Unexpected text node: . A text node cannot be a child of a <View>.',
-    ]);
+  const marker = '__unexpectedTextNodeConsoleFilterInstalled';
+  if ((console as any)[marker]) return;
+  (console as any)[marker] = true;
 
-    const currentError = console.error;
-    const filtered = (...args: any[]) => {
-      const first = args[0];
-      if (
-        typeof first === 'string' &&
-        first === 'Unexpected text node: . A text node cannot be a child of a <View>.'
-      ) {
-        return;
-      }
-      currentError(...args);
-    };
+  // This specific react-native-web warning is raised when an empty string is present
+  // among <View /> children. It can intermittently surface as an Expo Web redbox and
+  // disrupt manual QA during auth/onboarding work.
+  const suppressed =
+    'Unexpected text node: . A text node cannot be a child of a <View>.';
+  const currentError = console.error.bind(console);
 
-    try {
-      Object.defineProperty(console, 'error', {
-        configurable: true,
-        writable: false,
-        value: filtered,
-      });
-    } catch {
-      // Best-effort fallback; some environments may disallow redefining console methods.
-      console.error = filtered;
+  console.error = (...args: any[]) => {
+    const first = args[0];
+    if (typeof first === 'string' && first === suppressed) {
+      return;
     }
+    currentError(...args);
+  };
+}
 
-    return () => {
-      try {
-        Object.defineProperty(console, 'error', {
-          configurable: true,
-          writable: true,
-          value: currentError,
-        });
-      } catch {
-        console.error = currentError;
-      }
-    };
-  }, []);
+installUnexpectedTextNodeConsoleFilter();
 
+export default function RootLayout() {
   return (
     <AppProviders>
       <AuthGuard />
