@@ -1,48 +1,105 @@
-import React from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import { api, AuthError } from '@/lib/api';
+import { saveTokens, clearTokens, getAccessToken } from '@/lib/auth/token-storage';
 
 export type AuthUser = {
   id: string;
-  name: string;
-  role: 'demo';
+  phone: string;
+  nickname: string | null;
 };
 
 type AuthContextValue = {
-  signInDemo: () => void;
-  signOut: () => void;
   user: AuthUser | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  isNewUser: boolean;
+  signInWithSms: (phone: string, code: string) => Promise<void>;
+  signInWithWechat: (code: string) => Promise<void>;
+  signOut: () => Promise<void>;
 };
 
-const AuthContext = React.createContext<AuthContextValue | null>(null);
+const AuthContext = createContext<AuthContextValue | null>(null);
 
-const DEMO_USER: AuthUser = {
-  id: 'demo-user',
-  name: 'Chen Wenjie',
-  role: 'demo',
-};
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isNewUser, setIsNewUser] = useState(false);
 
-type Props = {
-  children: React.ReactNode;
-};
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await getAccessToken();
+        if (token) {
+          const me = await api.get<AuthUser>('/api/v1/auth/me');
+          setUser(me);
+        }
+      } catch {
+        await clearTokens();
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, []);
 
-export function AuthProvider({ children }: Props) {
-  const [user, setUser] = React.useState<AuthUser | null>(null);
+  const signInWithSms = useCallback(async (phone: string, code: string) => {
+    const data = await api.post<{
+      access_token: string;
+      refresh_token: string;
+      expires_in: number;
+      is_new_user: boolean;
+    }>('/api/v1/auth/sms/verify', { phone, code });
 
-  const value = React.useMemo<AuthContextValue>(
-    () => ({
-      signInDemo: () => setUser(DEMO_USER),
-      signOut: () => setUser(null),
-      user,
-    }),
-    [user]
-  );
+    await saveTokens({
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      expiresIn: data.expires_in,
+    });
+
+    setIsNewUser(data.is_new_user);
+    const me = await api.get<AuthUser>('/api/v1/auth/me');
+    setUser(me);
+  }, []);
+
+  const signInWithWechat = useCallback(async (code: string) => {
+    const data = await api.post<{
+      access_token: string;
+      refresh_token: string;
+      expires_in: number;
+      is_new_user: boolean;
+    }>('/api/v1/auth/wechat/login', { code });
+
+    await saveTokens({
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      expiresIn: data.expires_in,
+    });
+
+    setIsNewUser(data.is_new_user);
+    const me = await api.get<AuthUser>('/api/v1/auth/me');
+    setUser(me);
+  }, []);
+
+  const signOut = useCallback(async () => {
+    await clearTokens();
+    setUser(null);
+    setIsNewUser(false);
+  }, []);
+
+  const value = useMemo<AuthContextValue>(() => ({
+    user,
+    isAuthenticated: !!user,
+    isLoading,
+    isNewUser,
+    signInWithSms,
+    signInWithWechat,
+    signOut,
+  }), [user, isLoading, isNewUser, signInWithSms, signInWithWechat, signOut]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  const context = React.useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 }

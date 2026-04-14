@@ -1,0 +1,114 @@
+import { getAccessToken, getRefreshToken, saveTokens, clearTokens, type TokenPair } from './auth/token-storage';
+
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:18000';
+
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+
+async function refreshToken(): Promise<boolean> {
+  if (isRefreshing && refreshPromise) return refreshPromise;
+  isRefreshing = true;
+
+  refreshPromise = (async () => {
+    try {
+      const token = await getRefreshToken();
+      if (!token) return false;
+
+      const res = await fetch(`${API_BASE}/api/v1/auth/token/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: token }),
+      });
+
+      if (!res.ok) return false;
+
+      const data = await res.json();
+      if (data.code !== 0) return false;
+
+      await saveTokens({
+        accessToken: data.data.access_token,
+        refreshToken: data.data.refresh_token,
+        expiresIn: data.data.expires_in,
+      });
+      return true;
+    } catch {
+      return false;
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const accessToken = await getAccessToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`;
+  }
+
+  let res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+
+  if (res.status === 401 && accessToken) {
+    const refreshed = await refreshToken();
+    if (refreshed) {
+      const newToken = await getAccessToken();
+      headers['Authorization'] = `Bearer ${newToken}`;
+      res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+    } else {
+      await clearTokens();
+      throw new AuthError('Session expired');
+    }
+  }
+
+  const json = await res.json();
+
+  if (!res.ok || json.code !== 0) {
+    throw new ApiError(json.message || 'Request failed', json.code, res.status);
+  }
+
+  return json.data as T;
+}
+
+export class AuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AuthError';
+  }
+}
+
+export class ApiError extends Error {
+  constructor(message: string, public code: number, public status: number) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+export const api = {
+  get: <T>(path: string) => request<T>(path, { method: 'GET' }),
+  post: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+  upload: async <T>(path: string, formData: FormData): Promise<T> => {
+    const accessToken = await getAccessToken();
+    const headers: Record<string, string> = {};
+    if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    const json = await res.json();
+    if (!res.ok || json.code !== 0) {
+      throw new ApiError(json.message || 'Upload failed', json.code, res.status);
+    }
+    return json.data as T;
+  },
+};

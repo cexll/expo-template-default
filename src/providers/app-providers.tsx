@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
 import { AuthProvider } from '@/providers/auth-provider';
+import { ActiveProfileProvider } from '@/providers/active-profile-provider';
 
 type Props = {
   children: React.ReactNode;
@@ -24,7 +25,9 @@ export function AppProviders({ children, queryClient: externalQueryClient }: Pro
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>{children}</AuthProvider>
+      <AuthProvider>
+        <ActiveProfileProvider>{children}</ActiveProfileProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

@@ -21,6 +21,18 @@
     --color-ink-400: #8e8675;
     --color-ink-700: #312c23;
     --color-ink-900: #181510;
+    --color-nav-bg: #F5F0E6;
+    --color-primary: #3D3528;
+    --color-card: #FFFFFF;
+    --color-page-bg: #FAF8F4;
+    --color-increase-bg: #FDF0E0;
+    --color-increase-text: #8A5200;
+    --color-new-bg: #FFF7F4;
+    --color-new-text: #8B3A1A;
+    --color-stable-bg: #EDF7F2;
+    --color-stable-text: #1A6645;
+    --color-neutral-bg: #F5F5F3;
+    --color-neutral-text: #C4BDB4;
   }
 }
 

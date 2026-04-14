@@ -1,0 +1,81 @@
+import { View, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, useLocalSearchParams } from 'expo-router';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { formatSubscriptionPlan, useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
+
+function pickParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function formatProvider(provider: string | null) {
+  if (provider === 'wechat') return '微信支付';
+  if (provider === 'alipay') return '支付宝';
+  return provider ?? '-';
+}
+
+export default function PaymentSuccessPage() {
+  const params = useLocalSearchParams<{
+    order_id?: string;
+    plan?: string;
+    provider?: string;
+    amount?: string;
+    currency?: string;
+  }>();
+
+  const orderId = pickParam(params.order_id) ?? '';
+  const requestedPlan = pickParam(params.plan);
+  const requestedProvider = pickParam(params.provider);
+  const requestedAmount = pickParam(params.amount);
+
+  const { data: status, error } = useSubscriptionStatus();
+
+  const isActive = Boolean(status?.isActive);
+  const planLabel = formatSubscriptionPlan(isActive ? status?.plan ?? 'free' : requestedPlan ?? status?.plan ?? 'free');
+
+  const title = isActive ? '订阅已生效' : orderId ? '订单已创建' : '订单信息缺失';
+  const subtitle = isActive
+    ? '会员权益已可用'
+    : orderId
+      ? '当前还未收到支付完成确认，支付完成后会自动开通（可能有延迟）'
+      : '请返回上一页重新下单';
+
+  return (
+    <SafeAreaView className="flex-1 items-center justify-center bg-page-bg px-6">
+      <Text className="mb-4 text-5xl">{isActive ? '🎉' : '⏳'}</Text>
+      <Text className="mb-2 text-2xl font-bold text-primary">{title}</Text>
+      <Text className="mb-8 text-sm text-neutral-text">{subtitle}</Text>
+
+      <Card className="mb-8 w-full">
+        {orderId ? (
+          <View className="flex-row justify-between py-2">
+            <Text className="text-sm text-neutral-text">订单号</Text>
+            <Text className="font-mono text-sm text-primary">{orderId}</Text>
+          </View>
+        ) : null}
+        <View className="flex-row justify-between py-2">
+          <Text className="text-sm text-neutral-text">方案</Text>
+          <Text className="text-sm font-semibold text-primary">{planLabel}</Text>
+        </View>
+        <View className="flex-row justify-between py-2">
+          <Text className="text-sm text-neutral-text">支付方式</Text>
+          <Text className="text-sm text-primary">{formatProvider(requestedProvider ?? null)}</Text>
+        </View>
+        <View className="flex-row justify-between py-2">
+          <Text className="font-mono text-sm text-neutral-text">金额</Text>
+          <Text className="font-mono text-sm text-primary">{requestedAmount ?? '-'}</Text>
+        </View>
+        <View className="flex-row justify-between py-2">
+          <Text className="text-sm text-neutral-text">到期时间</Text>
+          <Text className="font-mono text-sm text-primary">
+            {isActive && status?.expiresAt ? status.expiresAt : '支付完成后更新'}
+          </Text>
+        </View>
+      </Card>
+
+      {error instanceof Error ? <Text className="mb-3 text-xs text-neutral-text">订阅状态获取失败：{error.message}</Text> : null}
+      <Button title="开始使用" fullWidth onPress={() => router.replace('/(main)')} />
+    </SafeAreaView>
+  );
+}
