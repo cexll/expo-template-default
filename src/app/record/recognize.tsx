@@ -198,21 +198,24 @@ export default function RecognizePage() {
   const autoRunRef = useRef(false);
 
   const { data: subscriptionStatus, isLoading: subscriptionLoading } = useSubscriptionStatus();
+  const quotaBlocked = Boolean(subscriptionStatus && !canUseFeature(subscriptionStatus, 'ai_recognize'));
 
   const runRecognize = useCallback(async () => {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
 
-    if (subscriptionStatus && !canUseFeature(subscriptionStatus, 'ai_recognize')) {
+    setError('');
+    setFields(buildInitialFields(diseaseType));
+
+    if (quotaBlocked) {
       setError('本月AI识别次数已用完');
       setLoading(false);
       setPaywallVisible(true);
       return;
     }
 
-    setError('');
+    setPaywallVisible(false);
     setLoading(true);
-    setFields(buildInitialFields(diseaseType));
 
     const requestImageUris = parseImageUris(imagesParam);
     if (requestImageUris.length === 0) {
@@ -261,7 +264,7 @@ export default function RecognizePage() {
       if (requestIdRef.current !== requestId) return;
       setLoading(false);
     }
-  }, [diseaseType, imagesParam, subscriptionStatus]);
+  }, [diseaseType, imagesParam, quotaBlocked]);
 
   useEffect(() => {
     if (autoRunRef.current) return;
@@ -399,7 +402,7 @@ export default function RecognizePage() {
           <Button
             title="下一步 — 匹配病灶"
             fullWidth
-            disabled={!requiredFilled}
+            disabled={!requiredFilled || quotaBlocked}
             onPress={() => {
               const data = Object.fromEntries(fields.map((field) => [field.key, field.value]));
               router.push({

@@ -208,6 +208,44 @@ describe('RecognizePage', () => {
     expect(mockApiPost).not.toHaveBeenCalled();
   });
 
+  it('initializes disease fields but blocks Next/Match while AI quota paywall is active', async () => {
+    const { useLocalSearchParams, router } = require('expo-router');
+
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      images: JSON.stringify(['file:///a.png']),
+      diseaseType: 'lung',
+    });
+
+    mockUseSubscriptionStatus.mockReturnValue({
+      data: { isActive: false, featureRemaining: { ai_recognize: 0 } },
+      isLoading: false,
+    });
+
+    render(<RecognizePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('升级解锁')).toBeTruthy();
+    });
+
+    // Close the modal so the underlying form is interactable.
+    fireEvent.press(screen.getByText('先不了，继续免费版'));
+
+    // Must still initialize the lung-specific field set.
+    expect(screen.getByText(/^密度/)).toBeTruthy();
+    expect(screen.getByText('磨玻璃')).toBeTruthy();
+
+    // Even if all required fields are manually filled, quota exhaustion must block progression.
+    fireEvent.changeText(screen.getByPlaceholderText('请输入部位'), '右上叶前段');
+    fireEvent.changeText(screen.getByPlaceholderText('请输入大小(长)'), '6.2');
+    fireEvent.press(screen.getByText('2'));
+    fireEvent.press(screen.getByText('磨玻璃'));
+    fireEvent.press(screen.getByText('下一步 — 匹配病灶'));
+
+    expect(router.push).not.toHaveBeenCalled();
+    expect(mockReadAsStringAsync).not.toHaveBeenCalled();
+    expect(mockApiPost).not.toHaveBeenCalled();
+  });
+
   it('requires lung density before enabling next step', async () => {
     const { useLocalSearchParams, router } = require('expo-router');
 
