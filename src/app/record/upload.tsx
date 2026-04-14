@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
+import { parseReportImageAssetsParam, stringifyReportImageAssetsParam, type ReportImageAsset } from '@/lib/report-images';
 
 type DiseaseType = 'thyroid' | 'breast' | 'lung';
 
@@ -19,25 +20,17 @@ function parseDiseaseTypeParam(value: unknown): DiseaseType | null {
   return null;
 }
 
-function parseImageUris(value: unknown): string[] {
-  const v = Array.isArray(value) ? value[0] : value;
-  if (typeof v !== 'string' || !v.trim()) return [];
-  try {
-    const parsed = JSON.parse(v) as unknown;
-    if (Array.isArray(parsed)) {
-      return parsed
-        .filter((uri): uri is string => typeof uri === 'string' && uri.trim() !== '')
-        .slice(0, 5);
-    }
-    return [];
-  } catch {
-    return [];
-  }
+function normalizeMimeType(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (!trimmed.includes('/')) return null;
+  return trimmed;
 }
 
 export default function UploadPage() {
   const params = useLocalSearchParams<{ images?: string; diseaseType?: string }>();
-  const [images, setImages] = useState<string[]>(() => parseImageUris(params.images));
+  const [images, setImages] = useState<ReportImageAsset[]>(() => parseReportImageAssetsParam(params.images));
   const [diseaseType, setDiseaseType] = useState<DiseaseType | null>(() => parseDiseaseTypeParam(params.diseaseType));
 
   useEffect(() => {
@@ -49,7 +42,7 @@ export default function UploadPage() {
 
   useEffect(() => {
     if (images.length === 0) {
-      const parsed = parseImageUris(params.images);
+      const parsed = parseReportImageAssetsParam(params.images);
       if (parsed.length > 0) setImages(parsed);
     }
   }, [images.length, params.images]);
@@ -78,7 +71,15 @@ export default function UploadPage() {
         selectionLimit: 5 - images.length,
       });
       if (!result.canceled) {
-        setImages((prev) => [...prev, ...result.assets.map((asset) => asset.uri)].slice(0, 5));
+        setImages((prev) =>
+          [
+            ...prev,
+            ...result.assets.map((asset) => ({
+              uri: asset.uri,
+              mimeType: normalizeMimeType((asset as any).mimeType) ?? null,
+            })),
+          ].slice(0, 5)
+        );
       }
     } catch (error) {
       console.warn('Image picker not available:', error);
@@ -91,7 +92,15 @@ export default function UploadPage() {
       const ImagePicker = require('expo-image-picker') as typeof import('expo-image-picker');
       const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
       if (!result.canceled) {
-        setImages((prev) => [...prev, result.assets[0].uri].slice(0, 5));
+        setImages((prev) =>
+          [
+            ...prev,
+            {
+              uri: result.assets[0].uri,
+              mimeType: normalizeMimeType((result.assets[0] as any).mimeType) ?? null,
+            },
+          ].slice(0, 5)
+        );
       }
     } catch (error) {
       console.warn('Camera not available:', error);
@@ -100,7 +109,7 @@ export default function UploadPage() {
 
   const removeImage = useCallback((index: number) => {
     setImages((prev) => {
-      const target = prev[index];
+      const target = prev[index]?.uri;
       if (typeof target === 'string' && target.startsWith('blob:')) {
         try {
           URL.revokeObjectURL(target);
@@ -121,9 +130,9 @@ export default function UploadPage() {
         <Text className="text-sm text-neutral-text mb-6">拍照或选择超声检查报告图片</Text>
 
         <View className="flex-row flex-wrap gap-3 mb-6">
-          {images.map((uri, index) => (
-            <View key={`${uri}-${index}`} className="relative">
-              <Image source={{ uri }} className="w-24 h-24 rounded-xl" />
+          {images.map((img, index) => (
+            <View key={`${img.uri}-${index}`} className="relative">
+              <Image source={{ uri: img.uri }} className="w-24 h-24 rounded-xl" />
               <View className="absolute bottom-1 left-1 rounded bg-primary opacity-80 px-1.5 py-0.5">
                 <Text className="text-[10px] text-white">{index + 1}</Text>
               </View>
@@ -200,7 +209,7 @@ export default function UploadPage() {
           onPress={() => {
             router.push({
               pathname: '/record/recognize',
-              params: { images: JSON.stringify(images), diseaseType },
+              params: { images: stringifyReportImageAssetsParam(images), diseaseType },
             });
           }}
         />

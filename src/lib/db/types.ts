@@ -51,6 +51,7 @@ export interface ReportImage {
   examination_id: string;
   uri: string;
   sort_order: number;
+  mime_type: string | null;
   created_at: string;
 }
 

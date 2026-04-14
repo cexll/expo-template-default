@@ -13,6 +13,7 @@ import { Tag } from '@/components/ui/Tag';
 import { PaywallSheet } from '@/components/PaywallSheet';
 import { canUseFeature, useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
 import { api } from '@/lib/api';
+import { parseReportImageAssetsParam, stringifyReportImageAssetsParam } from '@/lib/report-images';
 
 type Field = {
   key: string;
@@ -86,14 +87,7 @@ function parseDiseaseType(value: unknown): DiseaseType {
 }
 
 function parseImageUris(value: unknown): string[] {
-  if (typeof value !== 'string' || !value.trim()) return [];
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (Array.isArray(parsed)) return parsed.filter((uri): uri is string => typeof uri === 'string' && uri.trim() !== '');
-    return [];
-  } catch {
-    return [];
-  }
+  return parseReportImageAssetsParam(value).map((img) => img.uri);
 }
 
 async function readUriAsBase64(uri: string): Promise<string> {
@@ -192,7 +186,8 @@ export default function RecognizePage() {
   const params = useLocalSearchParams<{ images?: string; diseaseType?: string }>();
   const diseaseType = useMemo(() => parseDiseaseType(params.diseaseType), [params.diseaseType]);
   const imagesParam = Array.isArray(params.images) ? params.images[0] : params.images;
-  const imageUris = useMemo(() => parseImageUris(imagesParam), [imagesParam]);
+  const imageAssets = useMemo(() => parseReportImageAssetsParam(imagesParam), [imagesParam]);
+  const imageUris = useMemo(() => imageAssets.map((img) => img.uri), [imageAssets]);
 
   const [loading, setLoading] = useState(true);
   const [fields, setFields] = useState<Field[]>(() => buildInitialFields('thyroid'));
@@ -412,7 +407,7 @@ export default function RecognizePage() {
                 params: {
                   recognizedData: JSON.stringify(data),
                   diseaseType,
-                  images: imagesParam ?? JSON.stringify(imageUris),
+              images: imagesParam ?? stringifyReportImageAssetsParam(imageAssets),
                 },
               });
             }}

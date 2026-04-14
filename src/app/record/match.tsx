@@ -9,19 +9,12 @@ import { Card } from '@/components/ui/Card';
 import { scoreLesionMatch } from '@/lib/db/matching';
 import type { Lesion } from '@/lib/db/types';
 import { listExaminationsByLesion } from '@/lib/db/queries/examinations';
-import { createReportImage } from '@/lib/db/queries/report-images';
-import { listRemindersByLesion, updateReminder } from '@/lib/db/queries/reminders';
-import { persistReportImageUris } from '@/lib/report-image-storage';
-import { useCreateExamination } from '@/hooks/useExaminations';
-import { useCreateLesion, useLesions } from '@/hooks/useLesions';
-import { useCreateReminder } from '@/hooks/useReminders';
+import { parseReportImageAssetsParam } from '@/lib/report-images';
+import { saveMatchRecordAtomic } from '@/lib/db/save-match-record';
+import { useLesions } from '@/hooks/useLesions';
 import { useActiveProfile } from '@/providers/active-profile-provider';
 
 type DiseaseType = Lesion['disease_type'];
-
-function makeId(prefix: string) {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-}
 
 function parseNumber(value: unknown) {
   if (typeof value === 'number') {
@@ -36,113 +29,13 @@ function parseNumber(value: unknown) {
   return null;
 }
 
-function parseImageUris(value: unknown): string[] {
-  const v = Array.isArray(value) ? value[0] : value;
-  if (typeof v !== 'string' || !v.trim()) return [];
-  try {
-    const parsed = JSON.parse(v) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((uri): uri is string => typeof uri === 'string' && uri.trim() !== '').slice(0, 5);
-  } catch {
-    return [];
-  }
-}
-
-function formatExamDate(value: unknown) {
-  if (typeof value === 'string' && value.trim()) {
-    const date = new Date(value);
-    if (!Number.isNaN(date.getTime())) {
-      return date.toISOString().slice(0, 10);
-    }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      return value;
-    }
-  }
-
-  const today = new Date();
-  return today.toISOString().slice(0, 10);
-}
-
-function addDays(isoDate: string, days: number) {
-  const date = new Date(isoDate);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
-const DISEASE_LABELS: Record<DiseaseType, string> = {
-  thyroid: '甲状腺',
-  breast: '乳腺',
-  lung: '肺部',
-};
-
-export function buildExaminationInput(args: {
-  id: string;
-  lesionId: string;
-  recognized: Record<string, unknown>;
-  rawRecognizedJson: string | undefined;
-}) {
-  const examDate = formatExamDate(args.recognized.exam_date);
-
-  return {
-    id: args.id,
-    lesion_id: args.lesionId,
-    exam_date: examDate,
-    hospital: typeof args.recognized.hospital === 'string' && args.recognized.hospital.trim()
-      ? args.recognized.hospital.trim()
-      : null,
-    size_x: parseNumber(args.recognized.size_x),
-    size_y: parseNumber(args.recognized.size_y),
-    size_z: parseNumber(args.recognized.size_z),
-    tirads: typeof args.recognized.tirads === 'string' && args.recognized.tirads.trim()
-      ? args.recognized.tirads.trim()
-      : null,
-    echo_type: typeof args.recognized.echo_type === 'string' && args.recognized.echo_type.trim()
-      ? args.recognized.echo_type.trim()
-      : null,
-    border: typeof args.recognized.border === 'string' && args.recognized.border.trim()
-      ? args.recognized.border.trim()
-      : null,
-    calcification:
-      typeof args.recognized.calcification === 'string' && args.recognized.calcification.trim()
-        ? args.recognized.calcification.trim()
-        : null,
-    blood_flow: typeof args.recognized.blood_flow === 'string' && args.recognized.blood_flow.trim()
-      ? args.recognized.blood_flow.trim()
-      : null,
-    birads: typeof args.recognized.birads === 'string' && args.recognized.birads.trim()
-      ? args.recognized.birads.trim()
-      : null,
-    shape: typeof args.recognized.shape === 'string' && args.recognized.shape.trim()
-      ? args.recognized.shape.trim()
-      : null,
-    orientation: typeof args.recognized.orientation === 'string' && args.recognized.orientation.trim()
-      ? args.recognized.orientation.trim()
-      : null,
-    lung_rads: typeof args.recognized.lung_rads === 'string' && args.recognized.lung_rads.trim()
-      ? args.recognized.lung_rads.trim()
-      : null,
-    density: typeof args.recognized.density === 'string' && args.recognized.density.trim()
-      ? args.recognized.density.trim()
-      : null,
-    morphology: typeof args.recognized.morphology === 'string' && args.recognized.morphology.trim()
-      ? args.recognized.morphology.trim()
-      : null,
-    pleural_pull: parseNumber(args.recognized.pleural_pull),
-    ai_raw_json: args.rawRecognizedJson ?? null,
-    notes: typeof args.recognized.notes === 'string' && args.recognized.notes.trim()
-      ? args.recognized.notes.trim()
-      : null,
-  };
-}
 
 export default function MatchPage() {
-  const params = useLocalSearchParams<{ recognizedData?: string; diseaseType?: string; images?: string }>();
+  const params = useLocalSearchParams<{ recognizedData?: string; diseaseType?: string; images?: string; debugFail?: string }>();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createNew, setCreateNew] = useState(false);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
   const queryClient = useQueryClient();
 
   const { activeProfileId } = useActiveProfile();
@@ -189,7 +82,8 @@ export default function MatchPage() {
   const sizeX = parseNumber(recognized.size_x);
 
   const imagesParam = Array.isArray(params.images) ? params.images[0] : params.images;
-  const reportImageUris = useMemo(() => parseImageUris(imagesParam), [imagesParam]);
+  const reportImages = useMemo(() => parseReportImageAssetsParam(imagesParam), [imagesParam]);
+  const reportImageUris = useMemo(() => reportImages.map((img) => img.uri), [reportImages]);
 
   const matches = useMemo(() => {
     return scoreLesionMatch(location, sizeX, lesionMatchInputs);
@@ -204,10 +98,6 @@ export default function MatchPage() {
     ? '新建病灶'
     : candidateLesions.find((l) => l.id === effectiveSelected)?.label || '';
 
-  const createLesion = useCreateLesion();
-  const createExamination = useCreateExamination();
-  const createReminder = useCreateReminder();
-
   const save = useCallback(async () => {
     if (!activeProfileId) {
       setError('请先创建档案');
@@ -220,105 +110,42 @@ export default function MatchPage() {
     }
 
     setError('');
-
-    const shouldCreateReminder =
-      typeof recognized.exam_date === 'string' && recognized.exam_date.trim() !== '';
+    setSaving(true);
 
     try {
-      let lesionId = effectiveSelected ?? '';
+      const debugFail = params.debugFail === 'report_images' || params.debugFail === 'reminder' ? params.debugFail : undefined;
+      const result = await saveMatchRecordAtomic({
+        activeProfileId,
+        createNew,
+        diseaseType,
+        recognized,
+        rawRecognizedJson: params.recognizedData,
+        reportImages,
+        selectedLesionId: effectiveSelected,
+        debugFailStep: debugFail as any,
+      });
 
-      if (createNew) {
-        const nextDiseaseType = diseaseType ?? 'thyroid';
-        const lesionLocation = typeof recognized.location === 'string' && recognized.location.trim()
-          ? recognized.location.trim()
-          : '未知部位';
-        const lesionLabel = `${DISEASE_LABELS[nextDiseaseType]}${lesionLocation}结节`;
+      await queryClient.invalidateQueries({ queryKey: ['lesions'] });
+      await queryClient.invalidateQueries({ queryKey: ['examinations'] });
+      await queryClient.invalidateQueries({ queryKey: ['reminders'] });
+      await queryClient.invalidateQueries({ queryKey: ['report_images'] });
 
-        const lesion = await createLesion.mutateAsync({
-          id: makeId('lesion'),
-          profile_id: activeProfileId,
-          disease_type: nextDiseaseType,
-          label: lesionLabel,
-          location: lesionLocation,
-          is_archived: 0,
-        });
-
-        if (!lesion) {
-          throw new Error('创建病灶失败');
-        }
-
-        lesionId = lesion.id;
-      }
-
-      const examinationId = makeId('exam');
-      const examination = await createExamination.mutateAsync(
-        buildExaminationInput({
-          id: examinationId,
-          lesionId,
-          recognized,
-          rawRecognizedJson: params.recognizedData,
-        })
-      );
-
-      if (!examination) {
-        throw new Error('创建检查记录失败');
-      }
-
-      if (reportImageUris.length > 0) {
-        const persistedUris = await persistReportImageUris(reportImageUris, examinationId);
-        await Promise.all(
-          persistedUris.map((uri, idx) =>
-            createReportImage({
-              id: makeId('report'),
-              examination_id: examinationId,
-              uri,
-              sort_order: idx,
-            })
-          )
-        );
-      }
-
-      if (shouldCreateReminder) {
-        const nextExamDate = addDays(examination.exam_date, 180);
-        if (nextExamDate) {
-          const reminders = await listRemindersByLesion(lesionId);
-          const activeReminder = reminders.find((reminder) => reminder.is_active === 1);
-
-          if (activeReminder) {
-            await updateReminder(activeReminder.id, {
-              next_exam_date: nextExamDate,
-              source: 'auto',
-              is_active: 1,
-            });
-            await queryClient.invalidateQueries({ queryKey: ['reminders'] });
-          } else {
-            await createReminder.mutateAsync({
-              id: makeId('reminder'),
-              lesion_id: lesionId,
-              next_exam_date: nextExamDate,
-              source: 'auto',
-              is_active: 1,
-            });
-          }
-        }
-      }
-
-      router.replace(`/lesion/${lesionId}`);
+      router.replace(`/lesion/${result.lesionId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : '入库失败，请重试');
+    } finally {
+      setSaving(false);
     }
   }, [
     activeProfileId,
-    createExamination,
-    createLesion,
     createNew,
-    createReminder,
     diseaseType,
     effectiveSelected,
+    params.debugFail,
     params.recognizedData,
     queryClient,
     recognized,
-    reportImageUris,
+    reportImages,
   ]);
 
   return (
@@ -394,14 +221,12 @@ export default function MatchPage() {
         <Text className="text-xs text-neutral-text mb-2">已选择: {selectedLabel || '请选择病灶'}</Text>
         {error ? <Text className="mb-2 text-xs text-new-text">{error}</Text> : null}
         <Button
-          title={createLesion.isPending || createExamination.isPending ? '入库中...' : '确认入库'}
+          title={saving ? '入库中...' : '确认入库'}
           fullWidth
           disabled={
             (!effectiveSelected && !createNew) ||
             !activeProfileId ||
-            createLesion.isPending ||
-            createExamination.isPending ||
-            createReminder.isPending
+            saving
           }
           onPress={() => void save()}
         />

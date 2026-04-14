@@ -55,7 +55,7 @@ describe('UploadPage', () => {
       },
     });
 
-    expect(JSON.parse(arg.params.images)).toEqual(['file:///a.png']);
+    expect(JSON.parse(arg.params.images)).toEqual([{ uri: 'file:///a.png', mimeType: null }]);
   });
 
   it('supports preview reorder and preserves order into recognition', async () => {
@@ -79,6 +79,9 @@ describe('UploadPage', () => {
     expect(mockRouterPush).toHaveBeenCalledTimes(1);
     const arg = mockRouterPush.mock.calls[0]?.[0];
     expect(arg.params.diseaseType).toBe('lung');
-    expect(JSON.parse(arg.params.images)).toEqual(['file:///b.png', 'file:///a.png']);
+    expect(JSON.parse(arg.params.images)).toEqual([
+      { uri: 'file:///b.png', mimeType: null },
+      { uri: 'file:///a.png', mimeType: null },
+    ]);
   });
 });

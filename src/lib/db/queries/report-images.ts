@@ -4,10 +4,10 @@ import type { ReportImage } from '@/lib/db/types';
 
 export type CreateReportImageInput = Pick<
   ReportImage,
-  'id' | 'examination_id' | 'uri' | 'sort_order'
+  'id' | 'examination_id' | 'uri' | 'sort_order' | 'mime_type'
 >;
 
-export type UpdateReportImageInput = Partial<Pick<ReportImage, 'uri' | 'sort_order'>>;
+export type UpdateReportImageInput = Partial<Pick<ReportImage, 'uri' | 'sort_order' | 'mime_type'>>;
 
 export async function listReportImagesByExamination(examinationId: string) {
   const db = await getDatabase();
@@ -47,13 +47,14 @@ export async function createReportImage(input: CreateReportImageInput) {
   await db.runAsync(
     `
       INSERT INTO report_images (
-        id, examination_id, uri, sort_order
-      ) VALUES (?, ?, ?, ?);
+        id, examination_id, uri, sort_order, mime_type
+      ) VALUES (?, ?, ?, ?, ?);
     `,
     input.id,
     input.examination_id,
     input.uri,
-    input.sort_order
+    input.sort_order,
+    input.mime_type
   );
 
   return getReportImageById(input.id);
