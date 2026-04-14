@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, Text, View, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -75,7 +75,11 @@ export default function HomePage() {
 
   const { data: profiles = [] } = useProfiles();
   const { data: subscriptionStatus } = useSubscriptionStatus();
-  const { activeProfileId, setActiveProfileId } = useActiveProfile();
+  const { activeProfileId, setActiveProfileId, bootstrapHomeDefaultProfile } = useActiveProfile();
+
+  useEffect(() => {
+    bootstrapHomeDefaultProfile(profiles);
+  }, [bootstrapHomeDefaultProfile, profiles]);
 
   const { data: lesions = [] } = useLesions(activeProfileId);
   const { data: reminders = [] } = useActiveReminders(activeProfileId);

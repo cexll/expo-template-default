@@ -48,7 +48,7 @@ jest.mock('@/providers/active-profile-provider', () => {
   return {
     useActiveProfile: () => {
       const [activeProfileId, setActiveProfileId] = React.useState('profile_1');
-      return { activeProfileId, setActiveProfileId };
+      return { activeProfileId, setActiveProfileId, bootstrapHomeDefaultProfile: () => {} };
     },
   };
 });
