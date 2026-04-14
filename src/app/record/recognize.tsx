@@ -27,8 +27,11 @@ type Field = {
 type DiseaseType = 'thyroid' | 'breast' | 'lung';
 
 const TIRADS_OPTIONS = ['1', '2', '3', '4a', '4b', '4c', '5'];
+const BIRADS_OPTIONS = ['1', '2', '3', '4a', '4b', '4c', '5', '6'];
 const ECHO_OPTIONS = ['低回声', '等回声', '高回声', '混合回声'];
 const BORDER_OPTIONS = ['清晰', '模糊', '不规则'];
+const LUNG_RADS_OPTIONS = ['1', '2', '3', '4a', '4b', '4x'];
+const LUNG_DENSITY_OPTIONS = ['实性', '磨玻璃', '混合', '钙化'];
 
 type FieldDefinition = Omit<Field, 'value' | 'confidence' | 'confirmed'>;
 
@@ -51,7 +54,7 @@ const BREAST_FIELDS: FieldDefinition[] = [
   { key: 'size_x', label: '大小(长)', required: true },
   { key: 'size_y', label: '大小(宽)', required: false },
   { key: 'size_z', label: '大小(高)', required: false },
-  { key: 'birads', label: 'BI-RADS', required: true },
+  { key: 'birads', label: 'BI-RADS', required: true, options: BIRADS_OPTIONS },
   { key: 'shape', label: '形态', required: false },
   { key: 'orientation', label: '走向', required: false },
   { key: 'exam_date', label: '检查日期', required: false },
@@ -63,8 +66,8 @@ const LUNG_FIELDS: FieldDefinition[] = [
   { key: 'size_x', label: '大小(长)', required: true },
   { key: 'size_y', label: '大小(宽)', required: false },
   { key: 'size_z', label: '大小(高)', required: false },
-  { key: 'lung_rads', label: 'LUNG-RADS', required: true },
-  { key: 'density', label: '密度', required: false },
+  { key: 'lung_rads', label: 'LUNG-RADS', required: true, options: LUNG_RADS_OPTIONS },
+  { key: 'density', label: '密度', required: true, options: LUNG_DENSITY_OPTIONS },
   { key: 'morphology', label: '形态', required: false },
   { key: 'pleural_pull', label: '胸膜牵拉', required: false },
   { key: 'exam_date', label: '检查日期', required: false },
@@ -122,6 +125,69 @@ function buildInitialFields(diseaseType: DiseaseType): Field[] {
   }));
 }
 
+const CONFIDENCE_THRESHOLD = 0.5;
+
+function parseFiniteNumber(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const num = Number(trimmed);
+  return Number.isFinite(num) ? num : null;
+}
+
+function isValidIsoDate(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return true;
+  const date = new Date(trimmed);
+  return !Number.isNaN(date.getTime());
+}
+
+function isValidFieldValue(field: Field): boolean {
+  const trimmed = field.value.trim();
+  if (!trimmed) return false;
+
+  if (field.options) {
+    return field.options.includes(trimmed);
+  }
+
+  if (field.key === 'exam_date') {
+    return isValidIsoDate(trimmed);
+  }
+
+  if (field.key === 'size_x' || field.key === 'size_y' || field.key === 'size_z' || field.key === 'pleural_pull') {
+    return parseFiniteNumber(trimmed) !== null;
+  }
+
+  return true;
+}
+
+function isConfirmedField(field: Field): boolean {
+  if (!isValidFieldValue(field)) return false;
+  return field.confirmed || field.confidence > CONFIDENCE_THRESHOLD;
+}
+
+function normalizeOptionValue(value: string, options: string[]): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+
+  const direct = options.find((opt) => opt === trimmed);
+  if (direct) return direct;
+
+  const lower = trimmed.toLowerCase();
+  const ci = options.find((opt) => opt.toLowerCase() === lower);
+  if (ci) return ci;
+
+  // Allow values like "TI-RADS 3" / "BI-RADS 4a" / "LUNG-RADS 2".
+  const cleaned = lower
+    .replace(/ti-?rads/gi, '')
+    .replace(/bi-?rads/gi, '')
+    .replace(/lung-?rads/gi, '')
+    .replace(/[^\da-z.]/gi, '')
+    .trim();
+  const cleanedMatch = options.find((opt) => opt.toLowerCase() === cleaned);
+  return cleanedMatch ?? trimmed;
+}
+
 export default function RecognizePage() {
   const params = useLocalSearchParams<{ images?: string; diseaseType?: string }>();
   const diseaseType = useMemo(() => parseDiseaseType(params.diseaseType), [params.diseaseType]);
@@ -174,7 +240,8 @@ export default function RecognizePage() {
 
       const mapped = defs.map((field) => {
         const result = responseFields[field.key];
-        const value = typeof result?.value === 'string' ? result.value : '';
+        const rawValue = typeof result?.value === 'string' ? result.value : '';
+        const value = field.options ? normalizeOptionValue(rawValue, field.options) : rawValue;
         const confidence = typeof result?.confidence === 'number' ? result.confidence : 0;
         return { ...field, value, confidence, confirmed: false };
       });
@@ -207,9 +274,9 @@ export default function RecognizePage() {
     void runRecognize();
   }, [runRecognize, subscriptionLoading]);
 
-  const confirmedCount = fields.filter((field) => field.confirmed || field.value.trim() !== '').length;
+  const confirmedCount = fields.filter(isConfirmedField).length;
   const totalCount = fields.length;
-  const requiredFilled = fields.filter((field) => field.required).every((field) => field.value.trim() !== '');
+  const requiredFilled = fields.filter((field) => field.required).every(isValidFieldValue);
 
   const updateField = useCallback((key: string, value: string) => {
     setFields((previousFields) =>
@@ -217,8 +284,8 @@ export default function RecognizePage() {
     );
   }, []);
 
-  const recognized = fields.filter((field) => field.confidence > 0.5);
-  const pending = fields.filter((field) => field.confidence <= 0.5);
+  const recognized = fields.filter((field) => field.confidence > CONFIDENCE_THRESHOLD && isValidFieldValue(field));
+  const pending = fields.filter((field) => !(field.confidence > CONFIDENCE_THRESHOLD && isValidFieldValue(field)));
 
   if (loading) {
     return (
@@ -286,11 +353,24 @@ export default function RecognizePage() {
                     {field.required ? <Text className="text-new-text"> *</Text> : null}
                   </Text>
                 </View>
-                <Input
-                  value={field.value}
-                  onChangeText={(value) => updateField(field.key, value)}
-                  placeholder={`请输入${field.label}`}
-                />
+                {field.options ? (
+                  <View className="mt-1 flex-row flex-wrap gap-2">
+                    {field.options.map((option) => (
+                      <Tag
+                        key={option}
+                        text={option}
+                        selected={field.value === option}
+                        onPress={() => updateField(field.key, option)}
+                      />
+                    ))}
+                  </View>
+                ) : (
+                  <Input
+                    value={field.value}
+                    onChangeText={(value) => updateField(field.key, value)}
+                    placeholder={`请输入${field.label}`}
+                  />
+                )}
               </Card>
             ))}
           </>

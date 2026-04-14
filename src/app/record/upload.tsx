@@ -1,7 +1,7 @@
-import { useCallback, useState } from 'react';
-import { Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Image, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
 
@@ -13,13 +13,64 @@ const DISEASE_LABELS: Record<DiseaseType, string> = {
   lung: '肺',
 };
 
+function parseDiseaseTypeParam(value: unknown): DiseaseType | null {
+  const v = Array.isArray(value) ? value[0] : value;
+  if (v === 'thyroid' || v === 'breast' || v === 'lung') return v;
+  return null;
+}
+
+function parseImageUris(value: unknown): string[] {
+  const v = Array.isArray(value) ? value[0] : value;
+  if (typeof v !== 'string' || !v.trim()) return [];
+  try {
+    const parsed = JSON.parse(v) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter((uri): uri is string => typeof uri === 'string' && uri.trim() !== '')
+        .slice(0, 5);
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
 export default function UploadPage() {
-  const [images, setImages] = useState<string[]>([]);
-  const [diseaseType, setDiseaseType] = useState<DiseaseType | null>(null);
+  const params = useLocalSearchParams<{ images?: string; diseaseType?: string }>();
+  const [images, setImages] = useState<string[]>(() => parseImageUris(params.images));
+  const [diseaseType, setDiseaseType] = useState<DiseaseType | null>(() => parseDiseaseTypeParam(params.diseaseType));
+
+  useEffect(() => {
+    if (!diseaseType) {
+      const parsed = parseDiseaseTypeParam(params.diseaseType);
+      if (parsed) setDiseaseType(parsed);
+    }
+  }, [diseaseType, params.diseaseType]);
+
+  useEffect(() => {
+    if (images.length === 0) {
+      const parsed = parseImageUris(params.images);
+      if (parsed.length > 0) setImages(parsed);
+    }
+  }, [images.length, params.images]);
+
+  const moveImage = useCallback((fromIndex: number, direction: -1 | 1) => {
+    setImages((prev) => {
+      const toIndex = fromIndex + direction;
+      if (toIndex < 0 || toIndex >= prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  }, []);
 
   const pickFromGallery = useCallback(async () => {
     try {
-      const ImagePicker = await import('expo-image-picker');
+      // Avoid dynamic import in Jest/node; keep inside callback to stay resilient in environments
+      // where `expo-image-picker` is unavailable.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const ImagePicker = require('expo-image-picker') as typeof import('expo-image-picker');
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsMultipleSelection: true,
@@ -36,7 +87,9 @@ export default function UploadPage() {
 
   const takePhoto = useCallback(async () => {
     try {
-      const ImagePicker = await import('expo-image-picker');
+      if (Platform.OS === 'web') return;
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const ImagePicker = require('expo-image-picker') as typeof import('expo-image-picker');
       const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
       if (!result.canceled) {
         setImages((prev) => [...prev, result.assets[0].uri].slice(0, 5));
@@ -47,7 +100,17 @@ export default function UploadPage() {
   }, []);
 
   const removeImage = useCallback((index: number) => {
-    setImages((prev) => prev.filter((_, currentIndex) => currentIndex !== index));
+    setImages((prev) => {
+      const target = prev[index];
+      if (typeof target === 'string' && target.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(target);
+        } catch {
+          // ignore
+        }
+      }
+      return prev.filter((_, currentIndex) => currentIndex !== index);
+    });
   }, []);
 
   const canProceed = images.length > 0 && diseaseType !== null;
@@ -60,14 +123,42 @@ export default function UploadPage() {
 
         <View className="flex-row flex-wrap gap-3 mb-6">
           {images.map((uri, index) => (
-            <View key={uri} className="relative">
+            <View key={`${uri}-${index}`} className="relative">
               <Image source={{ uri }} className="w-24 h-24 rounded-xl" />
+              <View className="absolute bottom-1 left-1 rounded bg-primary opacity-80 px-1.5 py-0.5">
+                <Text className="text-[10px] text-white">{index + 1}</Text>
+              </View>
               <Pressable
                 className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-new-text items-center justify-center"
+                accessibilityLabel={`删除图片${index + 1}`}
                 onPress={() => removeImage(index)}
               >
                 <Text className="text-white text-xs">✕</Text>
               </Pressable>
+              {images.length > 1 ? (
+                <View className="absolute -bottom-2 right-0 flex-row gap-1">
+                  <Pressable
+                    className={`w-7 h-7 rounded-full items-center justify-center border border-neutral-bg bg-white ${
+                      index === 0 ? 'opacity-40' : ''
+                    }`}
+                    accessibilityLabel={`上移图片${index + 1}`}
+                    disabled={index === 0}
+                    onPress={() => moveImage(index, -1)}
+                  >
+                    <Text className="text-xs text-primary">↑</Text>
+                  </Pressable>
+                  <Pressable
+                    className={`w-7 h-7 rounded-full items-center justify-center border border-neutral-bg bg-white ${
+                      index === images.length - 1 ? 'opacity-40' : ''
+                    }`}
+                    accessibilityLabel={`下移图片${index + 1}`}
+                    disabled={index === images.length - 1}
+                    onPress={() => moveImage(index, 1)}
+                  >
+                    <Text className="text-xs text-primary">↓</Text>
+                  </Pressable>
+                </View>
+              ) : null}
             </View>
           ))}
           {images.length < 5 ? (

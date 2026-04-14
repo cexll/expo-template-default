@@ -101,6 +101,42 @@ describe('RecognizePage', () => {
     });
   });
 
+  it('auto-runs recognition and shows loading state while processing', async () => {
+    const { useLocalSearchParams } = require('expo-router');
+
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      images: JSON.stringify(['file:///a.png']),
+      diseaseType: 'thyroid',
+    });
+
+    mockUseSubscriptionStatus.mockReturnValue({ data: { isActive: true }, isLoading: false });
+
+    mockReadAsStringAsync.mockResolvedValueOnce('BASE64_A');
+
+    let resolvePost: (value: any) => void;
+    const pending = new Promise((resolve) => {
+      resolvePost = resolve as any;
+    });
+    mockApiPost.mockReturnValueOnce(pending);
+
+    render(<RecognizePage />);
+
+    expect(screen.getByText('AI识别中...')).toBeTruthy();
+
+    resolvePost!({
+      disease_type: 'thyroid',
+      fields: {
+        location: { value: '左叶中下段', confidence: 0.9 },
+        size_x: { value: '8.3', confidence: 0.92 },
+        tirads: { value: '3', confidence: 0.85 },
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('AI识别核对')).toBeTruthy();
+    });
+  });
+
   it('surfaces OCR failure and blocks progression', async () => {
     const { useLocalSearchParams, router } = require('expo-router');
 
@@ -125,6 +161,25 @@ describe('RecognizePage', () => {
     expect(router.push).not.toHaveBeenCalled();
   });
 
+  it('fails safely when images are missing', async () => {
+    const { useLocalSearchParams } = require('expo-router');
+
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      images: JSON.stringify([]),
+      diseaseType: 'thyroid',
+    });
+
+    mockUseSubscriptionStatus.mockReturnValue({ data: { isActive: true }, isLoading: false });
+
+    render(<RecognizePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('未收到可识别的图片')).toBeTruthy();
+    });
+
+    expect(mockApiPost).not.toHaveBeenCalled();
+  });
+
   it('blocks OCR backend call when quota is exhausted', async () => {
     const { useLocalSearchParams } = require('expo-router');
 
@@ -146,5 +201,79 @@ describe('RecognizePage', () => {
 
     expect(mockReadAsStringAsync).not.toHaveBeenCalled();
     expect(mockApiPost).not.toHaveBeenCalled();
+  });
+
+  it('requires lung density before enabling next step', async () => {
+    const { useLocalSearchParams, router } = require('expo-router');
+
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      images: JSON.stringify(['file:///a.png']),
+      diseaseType: 'lung',
+    });
+
+    mockUseSubscriptionStatus.mockReturnValue({ data: { isActive: true }, isLoading: false });
+
+    mockReadAsStringAsync.mockResolvedValueOnce('BASE64_A');
+
+    mockApiPost.mockResolvedValue({
+      disease_type: 'lung',
+      fields: {
+        location: { value: '右上叶前段', confidence: 0.91 },
+        size_x: { value: '6.2', confidence: 0.9 },
+        lung_rads: { value: '2', confidence: 0.88 },
+      },
+    });
+
+    render(<RecognizePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('AI识别核对')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('下一步 — 匹配病灶'));
+    expect(router.push).not.toHaveBeenCalled();
+
+    // Pending enum field still provides quick-pick chips.
+    fireEvent.press(screen.getByText('磨玻璃'));
+    fireEvent.press(screen.getByText('下一步 — 匹配病灶'));
+
+    await waitFor(() => {
+      expect(router.push).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('progress counts only confirmed or high-confidence valid fields', async () => {
+    const { useLocalSearchParams } = require('expo-router');
+
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      images: JSON.stringify(['file:///a.png']),
+      diseaseType: 'lung',
+    });
+
+    mockUseSubscriptionStatus.mockReturnValue({ data: { isActive: true }, isLoading: false });
+
+    mockReadAsStringAsync.mockResolvedValueOnce('BASE64_A');
+
+    mockApiPost.mockResolvedValue({
+      disease_type: 'lung',
+      fields: {
+        location: { value: '右上叶前段', confidence: 0.91 },
+        size_x: { value: '6.2', confidence: 0.9 },
+        lung_rads: { value: '2', confidence: 0.88 },
+        density: { value: '磨玻璃', confidence: 0.2 }, // low confidence should not auto-confirm
+      },
+    });
+
+    render(<RecognizePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('3/10 已确认')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('磨玻璃'));
+
+    await waitFor(() => {
+      expect(screen.getByText('4/10 已确认')).toBeTruthy();
+    });
   });
 });
