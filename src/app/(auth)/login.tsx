@@ -112,79 +112,81 @@ export default function LoginPage() {
 
   return (
     <SafeAreaView className="flex-1 bg-page-bg">
-      <View className="flex-1 px-6 pt-20">
-        <Text className="mb-2 text-3xl font-bold text-primary">结节档案</Text>
-        <Text className="mb-10 text-base text-neutral-text">管理你的结节人生</Text>
+      <View className="flex-1">
+        <View className="flex-1 px-6 pt-20">
+          <Text className="mb-2 text-3xl font-bold text-primary">结节档案</Text>
+          <Text className="mb-10 text-base text-neutral-text">管理你的结节人生</Text>
 
-        <Input
-          label="手机号"
-          value={phone}
-          onChangeText={setPhone}
-          keyboardType="phone-pad"
-          maxLength={11}
-          placeholder="请输入手机号"
-          error={!codeSent ? error : undefined}
-        />
+          <Input
+            label="手机号"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+            maxLength={11}
+            placeholder="请输入手机号"
+            error={!codeSent ? error : undefined}
+          />
 
-        {codeSent ? (
-          <View className="mt-4">
-            <Input
-              label="验证码"
-              value={code}
-              onChangeText={setCode}
-              keyboardType="number-pad"
-              maxLength={6}
-              placeholder="请输入6位验证码"
-              error={error || undefined}
-            />
-          </View>
-        ) : null}
-
-        <View className="mt-6">
           {codeSent ? (
-            <Button title="登录" onPress={verify} fullWidth />
-          ) : (
-            <Button title="获取验证码" onPress={sendCode} fullWidth />
-          )}
-        </View>
-
-        {codeSent && countdown > 0 ? (
-          <Text className="mt-3 text-center text-sm text-neutral-text">{countdown}秒后可重新获取</Text>
-        ) : null}
-
-        {codeSent && countdown === 0 ? (
-          <Pressable onPress={sendCode} className="mt-3">
-            <Text className="text-center text-sm text-primary">重新获取验证码</Text>
-          </Pressable>
-        ) : null}
-
-        <Pressable className="mt-8 items-center" onPress={openWechat}>
-          <Text className="text-sm text-neutral-text">微信一键登录</Text>
-        </Pressable>
-      </View>
-
-      <Modal visible={wechatVisible} transparent animationType="fade" onRequestClose={closeWechat}>
-        <View className="flex-1 justify-end">
-          <Pressable className="flex-1 bg-black/30" onPress={closeWechat} />
-          <View className="rounded-t-3xl bg-card px-6 pt-6 pb-10">
-            <Text className="mb-2 text-lg font-bold text-primary">微信登录</Text>
-            <Text className="mb-4 text-sm text-neutral-text">当前为原型阶段：请粘贴微信登录 code</Text>
-            <Input
-              label="微信登录 code"
-              value={wechatCode}
-              onChangeText={setWechatCode}
-              placeholder="请输入 code"
-              error={wechatError || undefined}
-            />
-            <View className="mt-6">
-              <Button title={wechatLoading ? '登录中...' : '确认登录'} fullWidth onPress={submitWechat} disabled={wechatLoading} />
+            <View className="mt-4">
+              <Input
+                label="验证码"
+                value={code}
+                onChangeText={setCode}
+                keyboardType="number-pad"
+                maxLength={6}
+                placeholder="请输入6位验证码"
+                error={error || undefined}
+              />
             </View>
-            <Pressable onPress={closeWechat} className="mt-4 items-center">
-              <Text className="text-sm text-neutral-text">取消</Text>
-            </Pressable>
+          ) : null}
+
+          <View className="mt-6">
+            {codeSent ? (
+              <Button title="登录" onPress={verify} fullWidth />
+            ) : (
+              <Button title="获取验证码" onPress={sendCode} fullWidth />
+            )}
           </View>
+
+          {codeSent && countdown > 0 ? (
+            <Text className="mt-3 text-center text-sm text-neutral-text">{countdown}秒后可重新获取</Text>
+          ) : null}
+
+          {codeSent && countdown === 0 ? (
+            <Pressable onPress={sendCode} className="mt-3">
+              <Text className="text-center text-sm text-primary">重新获取验证码</Text>
+            </Pressable>
+          ) : null}
+
+          <Pressable className="mt-8 items-center" onPress={openWechat}>
+            <Text className="text-sm text-neutral-text">微信一键登录</Text>
+          </Pressable>
         </View>
-      </Modal>
+
+        <Modal visible={wechatVisible} transparent animationType="fade" onRequestClose={closeWechat}>
+          <View className="flex-1 justify-end">
+            <Pressable className="flex-1 bg-black/30" onPress={closeWechat} />
+            <View className="rounded-t-3xl bg-card px-6 pt-6 pb-10">
+              <Text className="mb-2 text-lg font-bold text-primary">微信登录</Text>
+              <Text className="mb-4 text-sm text-neutral-text">当前为原型阶段：请粘贴微信登录 code</Text>
+              <Input
+                label="微信登录 code"
+                value={wechatCode}
+                onChangeText={setWechatCode}
+                placeholder="请输入 code"
+                error={wechatError || undefined}
+              />
+              <View className="mt-6">
+                <Button title={wechatLoading ? '登录中...' : '确认登录'} fullWidth onPress={submitWechat} disabled={wechatLoading} />
+              </View>
+              <Pressable onPress={closeWechat} className="mt-4 items-center">
+                <Text className="text-sm text-neutral-text">取消</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+      </View>
     </SafeAreaView>
   );
 }

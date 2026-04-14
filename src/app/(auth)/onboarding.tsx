@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -21,6 +21,25 @@ export default function OnboardingPage() {
   const { isAuthenticated } = useAuth();
   const { data: profiles = [] } = useProfiles({ enabled: isAuthenticated });
   const createProfile = useCreateProfile();
+
+  const preview = useMemo(() => {
+    const trimmedNickname = nickname.trim();
+    const nicknameLabel = trimmedNickname || '未命名';
+    const avatarLabel = trimmedNickname ? trimmedNickname.slice(0, 1) : '—';
+
+    const genderLabel = gender === 'male' ? '男' : gender === 'female' ? '女' : '—';
+
+    const year = Number.parseInt(birthYear, 10);
+    const currentYear = new Date().getFullYear();
+    const birthYearLabel = Number.isFinite(year) ? `${year}年` : '—年';
+    const ageLabel = Number.isFinite(year) && year > 0 ? `${currentYear - year}岁` : '—岁';
+
+    return {
+      avatarLabel,
+      nicknameLabel,
+      metaLabel: `${genderLabel} · ${birthYearLabel} · ${ageLabel}`,
+    };
+  }, [birthYear, gender, nickname]);
 
   const submit = useCallback(async () => {
     if (!isAuthenticated) {
@@ -93,6 +112,19 @@ export default function OnboardingPage() {
         </View>
 
         {error ? <Text className="mt-3 text-sm text-new-text">{error}</Text> : null}
+
+        <View className="mt-6 rounded-2xl bg-sand px-4 py-4">
+          <Text className="text-sm font-semibold text-neutral-text">档案预览</Text>
+          <View className="mt-3 flex-row items-center gap-3">
+            <View className="h-10 w-10 items-center justify-center rounded-xl bg-primary">
+              <Text className="text-sm font-semibold text-white">{preview.avatarLabel}</Text>
+            </View>
+            <View className="flex-1">
+              <Text className="text-base font-semibold text-primary">{preview.nicknameLabel}</Text>
+              <Text className="mt-1 text-xs text-neutral-text">{preview.metaLabel}</Text>
+            </View>
+          </View>
+        </View>
 
         <View className="mt-8">
           <Button

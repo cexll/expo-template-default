@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { api, AuthError } from '@/lib/api';
-import { saveTokens, clearTokens, getAccessToken } from '@/lib/auth/token-storage';
+import { saveTokens, clearTokens, getAccessToken, subscribeTokenChanges } from '@/lib/auth/token-storage';
 
 export type AuthUser = {
   id: string;
@@ -35,10 +35,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch {
         await clearTokens();
+        setUser(null);
+        setIsNewUser(false);
       } finally {
         setIsLoading(false);
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    return subscribeTokenChanges((tokens) => {
+      if (!tokens) {
+        setUser(null);
+        setIsNewUser(false);
+      }
+    });
   }, []);
 
   const signInWithSms = useCallback(async (phone: string, code: string) => {
@@ -49,15 +60,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       is_new_user: boolean;
     }>('/api/v1/auth/sms/verify', { phone, code });
 
-    await saveTokens({
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token,
-      expiresIn: data.expires_in,
-    });
+    try {
+      await saveTokens({
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresIn: data.expires_in,
+      });
 
-    setIsNewUser(data.is_new_user);
-    const me = await api.get<AuthUser>('/api/v1/auth/me');
-    setUser(me);
+      setIsNewUser(data.is_new_user);
+      const me = await api.get<AuthUser>('/api/v1/auth/me');
+      setUser(me);
+    } catch (err) {
+      await clearTokens();
+      setUser(null);
+      setIsNewUser(false);
+      throw err;
+    }
   }, []);
 
   const signInWithWechat = useCallback(async (code: string) => {
@@ -68,15 +86,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       is_new_user: boolean;
     }>('/api/v1/auth/wechat/login', { code });
 
-    await saveTokens({
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token,
-      expiresIn: data.expires_in,
-    });
+    try {
+      await saveTokens({
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresIn: data.expires_in,
+      });
 
-    setIsNewUser(data.is_new_user);
-    const me = await api.get<AuthUser>('/api/v1/auth/me');
-    setUser(me);
+      setIsNewUser(data.is_new_user);
+      const me = await api.get<AuthUser>('/api/v1/auth/me');
+      setUser(me);
+    } catch (err) {
+      await clearTokens();
+      setUser(null);
+      setIsNewUser(false);
+      throw err;
+    }
   }, []);
 
   const signOut = useCallback(async () => {

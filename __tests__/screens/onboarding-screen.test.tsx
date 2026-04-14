@@ -30,6 +30,28 @@ describe('OnboardingPage', () => {
     jest.clearAllMocks();
   });
 
+  it('shows a live archive preview that updates as the user edits fields', async () => {
+    mockUseAuth.mockReturnValue({ isAuthenticated: true, isLoading: false, isNewUser: true });
+    mockUseProfiles.mockReturnValue({ data: [] });
+
+    render(<OnboardingPage />);
+
+    // Preview block should be visible.
+    expect(screen.getByText('档案预览')).toBeTruthy();
+
+    fireEvent.changeText(screen.getByPlaceholderText('例如：本人、妈妈'), '本人');
+    fireEvent.press(screen.getByText('男'));
+    fireEvent.changeText(screen.getByPlaceholderText('例如：1985'), '1985');
+
+    const currentYear = new Date().getFullYear();
+    const expectedAge = currentYear - 1985;
+
+    await waitFor(() => {
+      expect(screen.getByText('本人')).toBeTruthy();
+      expect(screen.getByText(`男 · 1985年 · ${expectedAge}岁`)).toBeTruthy();
+    });
+  });
+
   it('blocks profile creation when signed out', async () => {
     mockUseAuth.mockReturnValue({ isAuthenticated: false, isLoading: false, isNewUser: false });
     mockUseProfiles.mockReturnValue({ data: [] });

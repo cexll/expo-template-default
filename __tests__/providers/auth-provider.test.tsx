@@ -27,6 +27,7 @@ jest.mock('@/lib/auth/token-storage', () => ({
   saveTokens: jest.fn(),
   clearTokens: jest.fn(),
   getAccessToken: jest.fn(),
+  subscribeTokenChanges: jest.fn(() => () => {}),
 }));
 
 const { api } = require('@/lib/api') as {
@@ -36,6 +37,7 @@ const tokenStorage = require('@/lib/auth/token-storage') as {
   saveTokens: jest.Mock;
   clearTokens: jest.Mock;
   getAccessToken: jest.Mock;
+  subscribeTokenChanges: jest.Mock;
 };
 
 function AuthConsumer() {
@@ -51,7 +53,7 @@ function AuthConsumer() {
       <Pressable
         testID="sign-in"
         onPress={() => {
-          void signInWithSms('13800000000', '123456');
+          void signInWithSms('13800000000', '123456').catch(() => {});
         }}
       >
         <Text>sign in</Text>
@@ -122,6 +124,38 @@ describe('AuthProvider', () => {
       expect(screen.getByText('13800000000')).toBeTruthy();
       expect(screen.getByTestId('authenticated').props.children).toBe('yes');
       expect(screen.getByTestId('new-user').props.children).toBe('yes');
+    });
+  });
+
+  it('fails closed when token issuance succeeds but bootstrap /me fails', async () => {
+    tokenStorage.getAccessToken.mockResolvedValue(null);
+    api.post.mockResolvedValue({
+      access_token: 'access_1',
+      refresh_token: 'refresh_1',
+      expires_in: 3600,
+      is_new_user: true,
+    });
+    api.get.mockRejectedValue(new Error('bootstrap failed'));
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading').props.children).toBe('ready');
+    });
+
+    fireEvent.press(screen.getByTestId('sign-in'));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/api/v1/auth/sms/verify', { phone: '13800000000', code: '123456' });
+      expect(tokenStorage.saveTokens).toHaveBeenCalledTimes(1);
+      expect(tokenStorage.clearTokens).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId('authenticated').props.children).toBe('no');
+      expect(screen.getByTestId('new-user').props.children).toBe('no');
+      expect(screen.getByText('anonymous')).toBeTruthy();
     });
   });
 
