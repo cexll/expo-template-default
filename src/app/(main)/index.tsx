@@ -232,7 +232,7 @@ export default function HomePage() {
   }, [activeLesions, activeProfileId, profileLesionsById, profileRemindersById, profiles, reminders]);
 
   const groupedLesions = useMemo(() => {
-    return (Object.keys(DISEASE_LABELS) as Array<keyof typeof DISEASE_LABELS>)
+    return (Object.keys(DISEASE_LABELS) as (keyof typeof DISEASE_LABELS)[])
       .map((diseaseType) => ({
         diseaseType,
         title: DISEASE_LABELS[diseaseType],
@@ -321,7 +321,7 @@ export default function HomePage() {
           profiles={profileItems}
           activeId={activeProfileId}
           onSelect={setActiveProfileId}
-          onAdd={() => router.push('/(auth)/onboarding')}
+          onAdd={() => router.push('/profiles/new')}
         />
       )}
 

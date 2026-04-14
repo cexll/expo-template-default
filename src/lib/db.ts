@@ -97,11 +97,42 @@ async function migrateDatabase(db: SQLiteDatabase, targetVersion = DATABASE_VERS
   }
 }
 
+async function ensureCoreTables(db: SQLiteDatabase) {
+  if (typeof (db as any).getAllAsync !== 'function') {
+    return;
+  }
+  // expo-sqlite on web can occasionally end up with a persisted database file where
+  // PRAGMA user_version is already set but the core schema is missing (e.g. an interrupted init).
+  // To keep the app bootable and the local-first contract valid, defensively re-apply the
+  // latest schema when required tables are absent.
+  const requiredTables = ['profiles', 'lesions', 'examinations', 'report_images', 'reminders'] as const;
+  const existing = new Set(
+    (
+      await db.getAllAsync<{ name: string }>(
+        `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${requiredTables
+          .map(() => '?')
+          .join(',')});`,
+        ...requiredTables
+      )
+    ).map((row) => row.name)
+  );
+
+  const missing = requiredTables.filter((name) => !existing.has(name));
+  if (missing.length === 0) return;
+
+  // Apply the latest schema (idempotent because it uses IF NOT EXISTS).
+  const latestSchema = migrations[DATABASE_VERSION - 1];
+  if (!latestSchema) throw new Error('Missing latest schema migration');
+  await db.execAsync(latestSchema);
+  await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION};`);
+}
+
 async function initializeDatabase() {
   const db = await openDatabaseAsync(DATABASE_NAME);
 
   await db.execAsync('PRAGMA foreign_keys = ON;');
   await migrateDatabase(db);
+  await ensureCoreTables(db);
 
   return db;
 }

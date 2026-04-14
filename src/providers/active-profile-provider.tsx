@@ -1,5 +1,4 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Platform } from 'react-native';
 
 import { useProfiles } from '@/hooks/useProfiles';
 import { useAuth } from '@/providers/auth-provider';
@@ -10,77 +9,58 @@ type ActiveProfileContextValue = {
 };
 
 const ActiveProfileContext = createContext<ActiveProfileContextValue | null>(null);
-
 const STORAGE_KEY = 'active_profile_id';
 
-async function getSecureStore() {
-  if (Platform.OS === 'web') return null;
+function loadStoredActiveProfileId(): string | null {
   try {
-    return await import('expo-secure-store');
+    return globalThis.localStorage?.getItem(STORAGE_KEY) ?? null;
   } catch {
     return null;
   }
 }
 
-async function loadStoredActiveProfileId(): Promise<string | null> {
-  const store = await getSecureStore();
-  if (store) {
-    return (await store.getItemAsync(STORAGE_KEY)) ?? null;
+function persistActiveProfileId(profileId: string) {
+  try {
+    globalThis.localStorage?.setItem(STORAGE_KEY, profileId);
+  } catch {
+    // ignore
   }
-  return globalThis.localStorage?.getItem(STORAGE_KEY) ?? null;
 }
 
-async function persistActiveProfileId(profileId: string): Promise<void> {
-  const store = await getSecureStore();
-  if (store) {
-    await store.setItemAsync(STORAGE_KEY, profileId);
-    return;
+function clearStoredActiveProfileId() {
+  try {
+    globalThis.localStorage?.removeItem(STORAGE_KEY);
+  } catch {
+    // ignore
   }
-  globalThis.localStorage?.setItem(STORAGE_KEY, profileId);
-}
-
-async function clearStoredActiveProfileId(): Promise<void> {
-  const store = await getSecureStore();
-  if (store) {
-    await store.deleteItemAsync(STORAGE_KEY);
-    return;
-  }
-  globalThis.localStorage?.removeItem(STORAGE_KEY);
 }
 
 export function ActiveProfileProvider({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
-  const { data: profiles = [] } = useProfiles({ enabled: isAuthenticated });
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { data: profiles = [] } = useProfiles({ enabled: isAuthenticated && !authLoading });
 
   const [activeProfileId, setActiveProfileIdState] = useState('');
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      if (!isAuthenticated) {
-        setActiveProfileIdState('');
-        setHydrated(true);
-        await clearStoredActiveProfileId();
-        return;
-      }
-
-      setHydrated(false);
-      const stored = await loadStoredActiveProfileId();
-      if (cancelled) return;
-      if (stored) setActiveProfileIdState(stored);
-      setHydrated(true);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated]);
+    if (hydrated) return;
+    const stored = loadStoredActiveProfileId();
+    if (stored) setActiveProfileIdState(stored);
+    setHydrated(true);
+  }, [hydrated]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (authLoading) return;
+    if (!isAuthenticated) {
+      setActiveProfileIdState('');
+      clearStoredActiveProfileId();
+    }
+  }, [authLoading, isAuthenticated]);
+
+  useEffect(() => {
     if (!hydrated) return;
+    if (authLoading) return;
+    if (!isAuthenticated) return;
     if (profiles.length === 0) {
       if (activeProfileId) setActiveProfileIdState('');
       return;
@@ -91,13 +71,15 @@ export function ActiveProfileProvider({ children }: { children: React.ReactNode 
 
     const fallbackId = profiles[0].id;
     setActiveProfileIdState(fallbackId);
-    void persistActiveProfileId(fallbackId);
-  }, [activeProfileId, hydrated, isAuthenticated, profiles]);
+    persistActiveProfileId(fallbackId);
+  }, [activeProfileId, authLoading, hydrated, isAuthenticated, profiles]);
 
   const setActiveProfileId = useCallback((profileId: string) => {
     setActiveProfileIdState(profileId);
     if (profileId) {
-      void persistActiveProfileId(profileId);
+      persistActiveProfileId(profileId);
+    } else {
+      clearStoredActiveProfileId();
     }
   }, []);
 

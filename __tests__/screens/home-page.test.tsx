@@ -9,11 +9,9 @@ import { listLesionsByProfile } from '@/lib/db/queries/lesions';
 import { listActiveRemindersByProfile } from '@/lib/db/queries/reminders';
 import { listExaminationsByLesion } from '@/lib/db/queries/examinations';
 
-const mockPush = jest.fn();
-
 jest.mock('expo-router', () => ({
   router: {
-    push: mockPush,
+    push: jest.fn(),
     replace: jest.fn(),
   },
 }));
@@ -44,12 +42,16 @@ jest.mock('@/lib/db/queries/examinations', () => ({
   listExaminationsByLesion: jest.fn(),
 }));
 
-jest.mock('@/providers/active-profile-provider', () => ({
-  useActiveProfile: () => ({
-    activeProfileId: 'profile_1',
-    setActiveProfileId: jest.fn(),
-  }),
-}));
+jest.mock('@/providers/active-profile-provider', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const React = require('react');
+  return {
+    useActiveProfile: () => {
+      const [activeProfileId, setActiveProfileId] = React.useState('profile_1');
+      return { activeProfileId, setActiveProfileId };
+    },
+  };
+});
 
 const listProfilesMock = jest.mocked(listProfiles);
 const listLesionsByProfileMock = jest.mocked(listLesionsByProfile);
@@ -188,6 +190,146 @@ describe('HomePage UI parity', () => {
     expect(screen.getByText('▲25%')).toBeTruthy();
     expect(screen.getByText('2次记录')).toBeTruthy();
     expect(screen.getByText(/天后复查/)).toBeTruthy();
+  });
+
+  it('defaults to the first profile, surfaces urgent inactive-chip copy and alert, and switches profile without stale bleed', async () => {
+    listProfilesMock.mockResolvedValue([
+      { id: 'profile_1', nickname: '本人' } as any,
+      { id: 'profile_2', nickname: '妈妈' } as any,
+    ]);
+
+    listLesionsByProfileMock.mockImplementation(async (profileId) => {
+      if (profileId === 'profile_1') {
+        return [
+          {
+            id: 'lesion_1',
+            profile_id: 'profile_1',
+            disease_type: 'thyroid',
+            label: '左叶结节',
+            location: '左叶',
+            is_archived: 0,
+          } as any,
+        ];
+      }
+      if (profileId === 'profile_2') {
+        return [
+          {
+            id: 'lesion_2',
+            profile_id: 'profile_2',
+            disease_type: 'breast',
+            label: '右乳结节',
+            location: '右侧',
+            is_archived: 0,
+          } as any,
+        ];
+      }
+      return [];
+    });
+
+    listActiveRemindersByProfileMock.mockImplementation(async (profileId) => {
+      if (profileId === 'profile_2') {
+        return [
+          {
+            id: 'reminder_2',
+            lesion_id: 'lesion_2',
+            next_exam_date: isoDaysFromNow(3),
+            source: 'auto',
+            is_active: 1,
+          } as any,
+        ];
+      }
+      return [];
+    });
+
+    listExaminationsByLesionMock.mockImplementation(async (lesionId) => {
+      if (lesionId === 'lesion_1') {
+        return [
+          {
+            id: 'exam_1',
+            lesion_id: 'lesion_1',
+            exam_date: isoDaysFromNow(-10),
+            size_x: 8.3,
+            size_y: null,
+            size_z: null,
+            tirads: '3',
+            birads: null,
+            lung_rads: null,
+          } as any,
+        ];
+      }
+      if (lesionId === 'lesion_2') {
+        return [
+          {
+            id: 'exam_2',
+            lesion_id: 'lesion_2',
+            exam_date: isoDaysFromNow(-20),
+            size_x: 12,
+            size_y: null,
+            size_z: null,
+            tirads: null,
+            birads: '3',
+            lung_rads: null,
+          } as any,
+        ];
+      }
+      return [];
+    });
+
+    renderWithQueryClient(<HomePage />);
+
+    // Defaults to profile_1 (first profile) and shows its lesions.
+    await waitFor(() => {
+      expect(screen.getByText('左叶结节')).toBeTruthy();
+    });
+    expect(screen.queryByText('右乳结节')).toBeNull();
+
+    // Urgent inactive-chip subtitle for profile_2 and global alert bar pick the soonest reminder.
+    await waitFor(() => {
+      expect(screen.getByText('3天后!')).toBeTruthy();
+      expect(screen.getByText('妈妈的乳腺复查还有 3 天')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByTestId('profile-switcher-chip-profile_2'));
+
+    await waitFor(() => {
+      expect(screen.getByText('右乳结节')).toBeTruthy();
+    });
+    expect(screen.queryByText('左叶结节')).toBeNull();
+    // Once profile_2 becomes active, the urgent inactive subtitle should no longer be visible.
+    expect(screen.queryByText('3天后!')).toBeNull();
+  });
+
+  it('routes into /record/upload from the empty-home state (no profiles)', async () => {
+    const { router } = require('expo-router');
+    listProfilesMock.mockResolvedValueOnce([] as any);
+
+    renderWithQueryClient(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('暂无档案')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('添加第一个病灶记录'));
+    expect(router.push).toHaveBeenCalledWith('/record/upload');
+  });
+
+  it('routes into /record/upload from the empty-lesion state (profile exists, no lesions)', async () => {
+    const { router } = require('expo-router');
+    listProfilesMock.mockResolvedValueOnce([{ id: 'profile_1', nickname: '本人' } as any]);
+    listLesionsByProfileMock.mockImplementation(async (profileId) => {
+      if (profileId !== 'profile_1') return [];
+      return [];
+    });
+    listActiveRemindersByProfileMock.mockImplementation(async () => []);
+
+    renderWithQueryClient(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('暂无病灶记录')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('添加第一个病灶记录'));
+    expect(router.push).toHaveBeenCalledWith('/record/upload');
   });
 });
 

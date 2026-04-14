@@ -39,6 +39,12 @@ export default function MainTabsLayout() {
           tabBarIcon: ({ color }) => <TabIcon color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="profiles/new"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }
