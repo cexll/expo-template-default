@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Image, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Button } from '@/components/ui/Button';
@@ -87,7 +87,6 @@ export default function UploadPage() {
 
   const takePhoto = useCallback(async () => {
     try {
-      if (Platform.OS === 'web') return;
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const ImagePicker = require('expo-image-picker') as typeof import('expo-image-picker');
       const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
