@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -192,6 +192,7 @@ export default function RecognizePage() {
   const params = useLocalSearchParams<{ images?: string; diseaseType?: string }>();
   const diseaseType = useMemo(() => parseDiseaseType(params.diseaseType), [params.diseaseType]);
   const imagesParam = Array.isArray(params.images) ? params.images[0] : params.images;
+  const imageUris = useMemo(() => parseImageUris(imagesParam), [imagesParam]);
 
   const [loading, setLoading] = useState(true);
   const [fields, setFields] = useState<Field[]>(() => buildInitialFields('thyroid'));
@@ -218,15 +219,15 @@ export default function RecognizePage() {
     setLoading(true);
     setFields(buildInitialFields(diseaseType));
 
-    const imageUris = parseImageUris(imagesParam);
-    if (imageUris.length === 0) {
+    const requestImageUris = parseImageUris(imagesParam);
+    if (requestImageUris.length === 0) {
       setError('未收到可识别的图片');
       setLoading(false);
       return;
     }
 
     try {
-      const images = await Promise.all(imageUris.map((uri) => readUriAsBase64(uri)));
+      const images = await Promise.all(requestImageUris.map((uri) => readUriAsBase64(uri)));
       const data = await api.post<RecognizeReportReply>('/api/v1/ai/recognize', {
         disease_type: diseaseType,
         images,
@@ -301,6 +302,22 @@ export default function RecognizePage() {
     <SafeAreaView className="flex-1 bg-page-bg">
       <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
         <Text className="mb-2 mt-4 text-2xl font-bold text-primary">AI识别核对</Text>
+
+        {imageUris.length > 0 ? (
+          <View className="mb-4">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="-mx-4 px-4">
+              {imageUris.map((uri, idx) => (
+                <View key={`${uri}-${idx}`} className="mr-3">
+                  <Image
+                    source={{ uri }}
+                    accessibilityLabel={`报告图片预览${idx + 1}`}
+                    className="h-20 w-20 rounded-xl bg-neutral-bg"
+                  />
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
 
         <View className="mb-4">
           <View className="mb-1 flex-row justify-between">
@@ -395,6 +412,7 @@ export default function RecognizePage() {
                 params: {
                   recognizedData: JSON.stringify(data),
                   diseaseType,
+                  images: imagesParam ?? JSON.stringify(imageUris),
                 },
               });
             }}

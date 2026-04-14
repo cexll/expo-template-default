@@ -37,7 +37,8 @@ function clearStoredActiveProfileId() {
 
 export function ActiveProfileProvider({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const { data: profiles = [] } = useProfiles({ enabled: isAuthenticated && !authLoading });
+  const profilesQuery = useProfiles({ enabled: isAuthenticated && !authLoading });
+  const profiles = profilesQuery.data ?? [];
 
   const [activeProfileId, setActiveProfileIdState] = useState('');
   const [hydrated, setHydrated] = useState(false);
@@ -61,8 +62,14 @@ export function ActiveProfileProvider({ children }: { children: React.ReactNode 
     if (!hydrated) return;
     if (authLoading) return;
     if (!isAuthenticated) return;
+    // Avoid clobbering a persisted active selection while profiles are still loading.
+    // Once the profiles query is fetched, we can safely validate/repair the active id.
+    if (!profilesQuery.isFetched) return;
     if (profiles.length === 0) {
-      if (activeProfileId) setActiveProfileIdState('');
+      if (activeProfileId) {
+        setActiveProfileIdState('');
+        clearStoredActiveProfileId();
+      }
       return;
     }
 
@@ -72,7 +79,7 @@ export function ActiveProfileProvider({ children }: { children: React.ReactNode 
     const fallbackId = profiles[0].id;
     setActiveProfileIdState(fallbackId);
     persistActiveProfileId(fallbackId);
-  }, [activeProfileId, authLoading, hydrated, isAuthenticated, profiles]);
+  }, [activeProfileId, authLoading, hydrated, isAuthenticated, profiles, profilesQuery.isFetched]);
 
   const setActiveProfileId = useCallback((profileId: string) => {
     setActiveProfileIdState(profileId);

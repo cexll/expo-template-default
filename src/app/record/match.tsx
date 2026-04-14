@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
@@ -9,7 +9,9 @@ import { Card } from '@/components/ui/Card';
 import { scoreLesionMatch } from '@/lib/db/matching';
 import type { Lesion } from '@/lib/db/types';
 import { listExaminationsByLesion } from '@/lib/db/queries/examinations';
+import { createReportImage } from '@/lib/db/queries/report-images';
 import { listRemindersByLesion, updateReminder } from '@/lib/db/queries/reminders';
+import { persistReportImageUris } from '@/lib/report-image-storage';
 import { useCreateExamination } from '@/hooks/useExaminations';
 import { useCreateLesion, useLesions } from '@/hooks/useLesions';
 import { useCreateReminder } from '@/hooks/useReminders';
@@ -32,6 +34,18 @@ function parseNumber(value: unknown) {
     return Number.isFinite(num) ? num : null;
   }
   return null;
+}
+
+function parseImageUris(value: unknown): string[] {
+  const v = Array.isArray(value) ? value[0] : value;
+  if (typeof v !== 'string' || !v.trim()) return [];
+  try {
+    const parsed = JSON.parse(v) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((uri): uri is string => typeof uri === 'string' && uri.trim() !== '').slice(0, 5);
+  } catch {
+    return [];
+  }
 }
 
 function formatExamDate(value: unknown) {
@@ -125,7 +139,7 @@ export function buildExaminationInput(args: {
 }
 
 export default function MatchPage() {
-  const params = useLocalSearchParams<{ recognizedData?: string; diseaseType?: string }>();
+  const params = useLocalSearchParams<{ recognizedData?: string; diseaseType?: string; images?: string }>();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createNew, setCreateNew] = useState(false);
   const [error, setError] = useState('');
@@ -174,13 +188,17 @@ export default function MatchPage() {
   const location = typeof recognized.location === 'string' ? recognized.location : '';
   const sizeX = parseNumber(recognized.size_x);
 
+  const imagesParam = Array.isArray(params.images) ? params.images[0] : params.images;
+  const reportImageUris = useMemo(() => parseImageUris(imagesParam), [imagesParam]);
+
   const matches = useMemo(() => {
     return scoreLesionMatch(location, sizeX, lesionMatchInputs);
   }, [lesionMatchInputs, location, sizeX]);
 
   // Auto-select if confidence >= 80%
-  const autoMatch = matches.find((m) => m.confidence >= 80);
-  const effectiveSelected = selectedId || (autoMatch && !createNew ? autoMatch.lesionId : null);
+  const topMatch = matches[0] ?? null;
+  const autoMatch = topMatch && topMatch.confidence >= 80 ? topMatch : null;
+  const effectiveSelected = selectedId || (!createNew && autoMatch ? autoMatch.lesionId : null);
 
   const selectedLabel = createNew
     ? '新建病灶'
@@ -232,9 +250,10 @@ export default function MatchPage() {
         lesionId = lesion.id;
       }
 
+      const examinationId = makeId('exam');
       const examination = await createExamination.mutateAsync(
         buildExaminationInput({
-          id: makeId('exam'),
+          id: examinationId,
           lesionId,
           recognized,
           rawRecognizedJson: params.recognizedData,
@@ -243,6 +262,20 @@ export default function MatchPage() {
 
       if (!examination) {
         throw new Error('创建检查记录失败');
+      }
+
+      if (reportImageUris.length > 0) {
+        const persistedUris = await persistReportImageUris(reportImageUris, examinationId);
+        await Promise.all(
+          persistedUris.map((uri, idx) =>
+            createReportImage({
+              id: makeId('report'),
+              examination_id: examinationId,
+              uri,
+              sort_order: idx,
+            })
+          )
+        );
       }
 
       if (shouldCreateReminder) {
@@ -276,7 +309,6 @@ export default function MatchPage() {
     }
   }, [
     activeProfileId,
-    candidateLesions,
     createExamination,
     createLesion,
     createNew,
@@ -286,6 +318,7 @@ export default function MatchPage() {
     params.recognizedData,
     queryClient,
     recognized,
+    reportImageUris,
   ]);
 
   return (
@@ -293,6 +326,22 @@ export default function MatchPage() {
       <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
         <Text className="text-2xl font-bold text-primary mt-4 mb-2">匹配病灶</Text>
         <Text className="text-sm text-neutral-text mb-6">选择此次检查记录归属的病灶</Text>
+
+        {reportImageUris.length > 0 ? (
+          <View className="mb-4">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="-mx-4 px-4">
+              {reportImageUris.map((uri, idx) => (
+                <View key={`${uri}-${idx}`} className="mr-3">
+                  <Image
+                    source={{ uri }}
+                    accessibilityLabel={`报告图片预览${idx + 1}`}
+                    className="h-20 w-20 rounded-xl bg-neutral-bg"
+                  />
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
 
         {!activeProfileId ? (
           <Card className="mb-3">
@@ -313,7 +362,7 @@ export default function MatchPage() {
               <View className="flex-row items-center justify-between">
                 <View className="flex-1">
                   <Text className="text-sm font-semibold text-primary">{match.lesionLabel}</Text>
-                  {match.confidence >= 80 && (
+                  {autoMatch && match.lesionId === autoMatch.lesionId && (
                     <Text className="text-xs text-stable-text mt-1">AI推荐匹配</Text>
                   )}
                 </View>

@@ -71,6 +71,9 @@ describe('RecognizePage', () => {
       expect(screen.getByText('AI识别核对')).toBeTruthy();
     });
 
+    expect(screen.getByLabelText('报告图片预览1')).toBeTruthy();
+    expect(screen.getByLabelText('报告图片预览2')).toBeTruthy();
+
     expect(screen.getByDisplayValue('左叶中下段')).toBeTruthy();
     expect(screen.getByDisplayValue('8.3')).toBeTruthy();
 
@@ -92,6 +95,8 @@ describe('RecognizePage', () => {
         diseaseType: 'thyroid',
       },
     });
+
+    expect(arg.params.images).toBe(JSON.stringify(['file:///a.png', 'file:///b.png']));
 
     const recognized = JSON.parse(arg.params.recognizedData);
     expect(recognized).toMatchObject({

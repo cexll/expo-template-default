@@ -1,11 +1,13 @@
-import { ScrollView, Text, View } from 'react-native';
+import { Image, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ChangeBadge } from '@/components/ChangeBadge';
 import { TimelineNode } from '@/components/TimelineNode';
+import { listReportImagesByLesion } from '@/lib/db/queries/report-images';
 import { useExaminations } from '@/hooks/useExaminations';
 import { useLesion } from '@/hooks/useLesions';
 
@@ -42,6 +44,23 @@ export default function LesionDetailPage() {
 
   const { data: lesion } = useLesion(lesionId);
   const { data: examinations = [] } = useExaminations(lesionId);
+
+  const reportImagesQuery = useQuery({
+    queryKey: ['report_images', 'lesion', lesionId],
+    queryFn: () => listReportImagesByLesion(lesionId),
+    enabled: Boolean(lesionId),
+  });
+
+  const reportImagesByExamId = (() => {
+    const map = new Map<string, { id: string; uri: string }[]>();
+    const rows = reportImagesQuery.data ?? [];
+    for (const row of rows) {
+      const list = map.get(row.examination_id) ?? [];
+      list.push({ id: row.id, uri: row.uri });
+      map.set(row.examination_id, list);
+    }
+    return map;
+  })();
 
   if (!lesionId) {
     return (
@@ -160,6 +179,21 @@ export default function LesionDetailPage() {
                 <Text className="text-sm text-primary font-mono">
                   {formatSize(exam.size_x, exam.size_y, exam.size_z)}
                 </Text>
+                {reportImagesByExamId.get(exam.id) && reportImagesByExamId.get(exam.id)!.length > 0 ? (
+                  <View className="mt-3">
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      {reportImagesByExamId.get(exam.id)!.map((img, imgIdx) => (
+                        <View key={img.id} className={imgIdx === 0 ? '' : 'ml-2'}>
+                          <Image
+                            source={{ uri: img.uri }}
+                            accessibilityLabel={`检查${exam.id}报告图片${imgIdx + 1}`}
+                            className="h-16 w-16 rounded-lg bg-neutral-bg"
+                          />
+                        </View>
+                      ))}
+                    </ScrollView>
+                  </View>
+                ) : null}
                 {exam.hospital ? <Text className="mt-1 text-xs text-neutral-text">{exam.hospital}</Text> : null}
               </Card>
             </TimelineNode>

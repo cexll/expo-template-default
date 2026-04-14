@@ -22,6 +22,20 @@ export async function listReportImagesByExamination(examinationId: string) {
   );
 }
 
+export async function listReportImagesByLesion(lesionId: string) {
+  const db = await getDatabase();
+  return db.getAllAsync<ReportImage>(
+    `
+      SELECT ri.*
+      FROM report_images ri
+      JOIN examinations e ON e.id = ri.examination_id
+      WHERE e.lesion_id = ?
+      ORDER BY e.exam_date DESC, ri.sort_order ASC, ri.created_at ASC;
+    `,
+    lesionId
+  );
+}
+
 export async function getReportImageById(id: string) {
   const db = await getDatabase();
   return db.getFirstAsync<ReportImage>('SELECT * FROM report_images WHERE id = ? LIMIT 1;', id);
