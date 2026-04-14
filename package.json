@@ -33,10 +33,10 @@
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
-      "eslint --fix"
+      "node ./node_modules/eslint/bin/eslint.js --fix"
     ],
     "*.{json,md,yml,yaml}": [
-      "prettier --check"
+      "node ./node_modules/prettier/bin/prettier.cjs --check"
     ]
   },
   "dependencies": {
