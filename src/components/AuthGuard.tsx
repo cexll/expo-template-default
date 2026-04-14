@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo } from 'react';
-import { router, useSegments } from 'expo-router';
+import { useEffect, useMemo } from 'react';
+import { router, usePathname, useSegments } from 'expo-router';
 
 import { useProfiles } from '@/hooks/useProfiles';
 import { useAuth } from '@/providers/auth-provider';
@@ -16,13 +16,20 @@ function isOnboardingRoute(segments: string[]) {
   return isAuthRoute(segments) && segments[1] === 'onboarding';
 }
 
+function normalizePathname(pathname: string | null) {
+  if (!pathname) return '';
+  return pathname.replace(/\/+$/, '') || '/';
+}
+
 export function AuthGuard() {
   const segments = useSegments();
+  const pathname = normalizePathname(usePathname());
   const { isAuthenticated, isLoading: authLoading, isNewUser } = useAuth();
   const { data: profiles, isLoading: profilesLoading } = useProfiles({ enabled: isAuthenticated });
 
   const rootSegment = useMemo(() => getRootSegment(segments), [segments]);
-  const inAuthGroup = rootSegment === '(auth)';
+  const inAuthGroup = rootSegment === '(auth)' || pathname === '/login' || pathname === '/onboarding';
+  const onboardingRoute = isOnboardingRoute(segments) || pathname === '/onboarding';
 
   const profileCount = profiles?.length ?? 0;
   const needsOnboarding = useMemo(() => {
@@ -37,9 +44,10 @@ export function AuthGuard() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!rootSegment) return;
+    if (!rootSegment && !pathname) return;
 
     if (!isAuthenticated) {
+      if (onboardingRoute) router.replace('/(auth)/login');
       if (!inAuthGroup) router.replace('/(auth)/login');
       return;
     }
@@ -47,12 +55,22 @@ export function AuthGuard() {
     if (!onboardingDecisionReady) return;
 
     if (needsOnboarding) {
-      if (!isOnboardingRoute(segments)) router.replace('/(auth)/onboarding');
+      if (!onboardingRoute) router.replace('/(auth)/onboarding');
       return;
     }
 
     if (inAuthGroup) router.replace('/(main)');
-  }, [authLoading, inAuthGroup, isAuthenticated, needsOnboarding, onboardingDecisionReady, rootSegment, segments]);
+  }, [
+    authLoading,
+    inAuthGroup,
+    isAuthenticated,
+    needsOnboarding,
+    onboardingDecisionReady,
+    onboardingRoute,
+    pathname,
+    rootSegment,
+    segments,
+  ]);
 
   return null;
 }

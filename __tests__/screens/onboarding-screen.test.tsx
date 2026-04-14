@@ -9,6 +9,11 @@ jest.mock('expo-router', () => ({
   },
 }));
 
+const mockUseAuth = jest.fn();
+jest.mock('@/providers/auth-provider', () => ({
+  useAuth: () => mockUseAuth(),
+}));
+
 const mockUseProfiles = jest.fn();
 const mockMutateAsync = jest.fn();
 
@@ -25,7 +30,30 @@ describe('OnboardingPage', () => {
     jest.clearAllMocks();
   });
 
+  it('blocks profile creation when signed out', async () => {
+    mockUseAuth.mockReturnValue({ isAuthenticated: false, isLoading: false, isNewUser: false });
+    mockUseProfiles.mockReturnValue({ data: [] });
+
+    render(<OnboardingPage />);
+
+    fireEvent.changeText(screen.getByPlaceholderText('例如：本人、妈妈'), '本人');
+    fireEvent.press(screen.getByText('男'));
+    fireEvent.changeText(screen.getByPlaceholderText('例如：1985'), '1985');
+
+    fireEvent.press(screen.getByText('开始使用'));
+
+    await waitFor(() => {
+      expect(mockMutateAsync).not.toHaveBeenCalled();
+    });
+
+    const { router } = require('expo-router');
+    await waitFor(() => {
+      expect(router.replace).toHaveBeenCalledWith('/(auth)/login');
+    });
+  });
+
   it('creates a profile with sort_order = existing count and navigates to /(main)', async () => {
+    mockUseAuth.mockReturnValue({ isAuthenticated: true, isLoading: false, isNewUser: true });
     mockUseProfiles.mockReturnValue({
       data: [
         { id: 'profile-1', nickname: 'A', gender: 'female', birth_year: 1990, avatar_uri: null, sort_order: 0 },

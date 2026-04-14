@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import { useCreateProfile, useProfiles } from '@/hooks/useProfiles';
+import { useAuth } from '@/providers/auth-provider';
 
 function makeId(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
@@ -17,10 +18,16 @@ export default function OnboardingPage() {
   const [birthYear, setBirthYear] = useState('');
   const [error, setError] = useState('');
 
-  const { data: profiles = [] } = useProfiles();
+  const { isAuthenticated } = useAuth();
+  const { data: profiles = [] } = useProfiles({ enabled: isAuthenticated });
   const createProfile = useCreateProfile();
 
   const submit = useCallback(async () => {
+    if (!isAuthenticated) {
+      setError('请先登录');
+      router.replace('/(auth)/login');
+      return;
+    }
     if (!nickname.trim()) {
       setError('请输入昵称');
       return;
@@ -51,7 +58,7 @@ export default function OnboardingPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : '创建失败，请重试');
     }
-  }, [birthYear, createProfile, gender, nickname, profiles.length]);
+  }, [birthYear, createProfile, gender, isAuthenticated, nickname, profiles.length]);
 
   return (
     <SafeAreaView className="flex-1 bg-page-bg">
