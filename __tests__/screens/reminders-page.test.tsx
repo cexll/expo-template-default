@@ -6,6 +6,7 @@ import RemindersPage from '@/app/(main)/reminders';
 import { listProfiles } from '@/lib/db/queries/profiles';
 import { listLesionsByProfile } from '@/lib/db/queries/lesions';
 import { listActiveRemindersByProfile } from '@/lib/db/queries/reminders';
+import { listLatestExaminationsByProfile } from '@/lib/db/queries/examinations';
 
 const mockPush = jest.fn();
 
@@ -28,6 +29,10 @@ jest.mock('@/lib/db/queries/reminders', () => ({
   listActiveRemindersByProfile: jest.fn(),
 }));
 
+jest.mock('@/lib/db/queries/examinations', () => ({
+  listLatestExaminationsByProfile: jest.fn(),
+}));
+
 jest.mock('@/providers/active-profile-provider', () => ({
   useActiveProfile: () => ({
     activeProfileId: 'profile_1',
@@ -38,6 +43,7 @@ jest.mock('@/providers/active-profile-provider', () => ({
 const listProfilesMock = jest.mocked(listProfiles);
 const listLesionsByProfileMock = jest.mocked(listLesionsByProfile);
 const listActiveRemindersByProfileMock = jest.mocked(listActiveRemindersByProfile);
+const listLatestExaminationsByProfileMock = jest.mocked(listLatestExaminationsByProfile);
 
 function renderWithQueryClient(node: React.ReactElement) {
   const queryClient = new QueryClient({
@@ -103,6 +109,17 @@ describe('RemindersPage UI parity', () => {
         } as any,
       ];
     });
+
+    listLatestExaminationsByProfileMock.mockResolvedValue([
+      {
+        id: 'exam_1',
+        lesion_id: 'lesion_unset',
+        exam_date: '2024-03-15',
+        tirads: null,
+        birads: null,
+        lung_rads: '4X',
+      } as any,
+    ]);
   });
 
   it("splits reminders into '即将到期' and '其他提醒' and includes the unset reminder path", async () => {
@@ -119,6 +136,10 @@ describe('RemindersPage UI parity', () => {
     expect(screen.getByText('未设置')).toBeTruthy();
     expect(screen.getByText('— 暂未生成')).toBeTruthy();
     expect(screen.getByText('去新增记录 ›')).toBeTruthy();
+
+    // Active reminder cards expose edit/deactivate affordances.
+    expect(screen.getByText('修改日期 ›')).toBeTruthy();
+    expect(screen.getByText('停用')).toBeTruthy();
   });
 });
 

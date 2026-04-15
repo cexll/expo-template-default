@@ -36,6 +36,13 @@ jest.mock('@/hooks/useReminders', () => ({
   useDeactivateReminder: () => ({ mutateAsync: mockDeactivateReminderMutateAsync, isPending: false }),
 }));
 
+jest.mock('@/lib/reminder-side-effects', () => ({
+  applyReminderSideEffects: async () => ({
+    notification: { supported: false, permission: 'unsupported' },
+    sync: { ok: true, sent: 0 },
+  }),
+}));
+
 function buildExam(overrides: Partial<any>) {
   return {
     id: overrides.id ?? 'exam',

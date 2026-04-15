@@ -11,6 +11,7 @@ import type { Lesion } from '@/lib/db/types';
 import { listExaminationsByLesion } from '@/lib/db/queries/examinations';
 import { parseReportImageAssetsParam } from '@/lib/report-images';
 import { saveMatchRecordAtomic } from '@/lib/db/save-match-record';
+import { applyReminderSideEffects } from '@/lib/reminder-side-effects';
 import { useLesions } from '@/hooks/useLesions';
 import { useActiveProfile } from '@/providers/active-profile-provider';
 
@@ -155,6 +156,25 @@ export default function MatchPage() {
       await queryClient.invalidateQueries({ queryKey: ['examinations'] });
       await queryClient.invalidateQueries({ queryKey: ['reminders'] });
       await queryClient.invalidateQueries({ queryKey: ['report_images'] });
+
+      const shouldSideEffect = typeof recognized.exam_date === 'string' && recognized.exam_date.trim() !== '';
+      if (shouldSideEffect) {
+        try {
+          const effects = await applyReminderSideEffects();
+          if (!effects.sync.ok && /未登录/.test(effects.sync.error)) {
+            router.replace(`/lesion/${result.lesionId}`);
+            return;
+          }
+          const sync = effects.sync.ok ? 'ok' : 'fail';
+          const perm = effects.notification.supported ? effects.notification.permission : 'unsupported';
+          router.replace(
+            `/lesion/${result.lesionId}?reminderSync=${encodeURIComponent(sync)}&reminderPerm=${encodeURIComponent(perm)}`
+          );
+          return;
+        } catch {
+          // Local reminder state remains the source of truth; never block navigation on sync failures.
+        }
+      }
 
       router.replace(`/lesion/${result.lesionId}`);
     } catch (err) {

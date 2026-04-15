@@ -44,6 +44,25 @@ export async function listExaminationsByLesion(lesionId: string) {
   );
 }
 
+export async function listLatestExaminationsByProfile(profileId: string) {
+  const db = await getDatabase();
+  return db.getAllAsync<Examination>(
+    `
+      SELECT e.*
+      FROM examinations e
+      INNER JOIN lesions l ON l.id = e.lesion_id
+      INNER JOIN (
+        SELECT lesion_id, MAX(exam_date) AS max_exam_date
+        FROM examinations
+        GROUP BY lesion_id
+      ) m ON m.lesion_id = e.lesion_id AND m.max_exam_date = e.exam_date
+      WHERE l.profile_id = ? AND l.is_archived = 0
+      ORDER BY e.exam_date DESC, e.created_at DESC;
+    `,
+    profileId
+  );
+}
+
 export async function getExaminationById(id: string) {
   const db = await getDatabase();
   return db.getFirstAsync<Examination>(

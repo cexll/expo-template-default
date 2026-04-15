@@ -12,6 +12,7 @@ import { useExaminations } from '@/hooks/useExaminations';
 import { useLesion } from '@/hooks/useLesions';
 import { useCreateReminder, useDeactivateReminder, useRemindersByLesion, useUpdateReminder } from '@/hooks/useReminders';
 import type { Examination, Lesion } from '@/lib/db/types';
+import { applyReminderSideEffects } from '@/lib/reminder-side-effects';
 
 function formatSignedDiff(value: string) {
   return Number(value) > 0 ? `+${value}` : value;
@@ -234,6 +235,7 @@ export default function ComparePage() {
   const [followUpEditing, setFollowUpEditing] = useState(false);
   const [followUpDraft, setFollowUpDraft] = useState('');
   const [followUpError, setFollowUpError] = useState('');
+  const [reminderSideEffectText, setReminderSideEffectText] = useState<string>('');
 
   useEffect(() => {
     if (windowMode !== 'custom') {
@@ -282,12 +284,20 @@ export default function ComparePage() {
 
   const saveFollowUp = useCallback(async () => {
     setFollowUpError('');
+    setReminderSideEffectText('');
     const trimmed = followUpDraft.trim();
 
     // Clearing restores an explicit unset state by deactivating the active reminder.
     if (!trimmed) {
       if (activeReminder) {
         await deactivateReminder.mutateAsync(activeReminder.id);
+        const effects = await applyReminderSideEffects();
+        const perm = effects.notification.supported ? effects.notification.permission : 'unsupported';
+        setReminderSideEffectText(
+          effects.sync.ok
+            ? `已同步提醒（通知权限：${perm}）`
+            : `提醒同步失败：${effects.sync.error}（通知权限：${perm}）`
+        );
       }
       setFollowUpEditing(false);
       setFollowUpDraft('');
@@ -314,6 +324,14 @@ export default function ComparePage() {
         is_active: 1,
       });
     }
+
+    const effects = await applyReminderSideEffects();
+    const perm = effects.notification.supported ? effects.notification.permission : 'unsupported';
+    setReminderSideEffectText(
+      effects.sync.ok
+        ? `已同步提醒（通知权限：${perm}）`
+        : `提醒同步失败：${effects.sync.error}（通知权限：${perm}）`
+    );
 
     setFollowUpEditing(false);
   }, [
@@ -493,6 +511,9 @@ export default function ComparePage() {
                   {followUpSource === 'manual' ? '手动设置' : '自动生成'}
                 </Text>
               ) : null}
+              {reminderSideEffectText ? (
+                <Text className="mt-1 text-[10px] text-neutral-text">{reminderSideEffectText}</Text>
+              ) : null}
             </View>
             <Pressable onPress={startEditFollowUp} accessibilityLabel="修改复查日期">
               <Text className="text-sm text-primary">修改</Text>
@@ -535,7 +556,15 @@ export default function ComparePage() {
                   onPress={() => {
                     void (async () => {
                       setFollowUpError('');
+                      setReminderSideEffectText('');
                       await deactivateReminder.mutateAsync(activeReminder.id);
+                      const effects = await applyReminderSideEffects();
+                      const perm = effects.notification.supported ? effects.notification.permission : 'unsupported';
+                      setReminderSideEffectText(
+                        effects.sync.ok
+                          ? `已同步提醒（通知权限：${perm}）`
+                          : `提醒同步失败：${effects.sync.error}（通知权限：${perm}）`
+                      );
                       setFollowUpDraft('');
                       setFollowUpEditing(false);
                     })();

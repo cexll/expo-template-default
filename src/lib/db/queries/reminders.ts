@@ -38,6 +38,24 @@ export async function listActiveRemindersByProfile(profileId: string) {
   );
 }
 
+export type ReminderSyncItem = {
+  lesion_label: string;
+  next_exam_date: string;
+};
+
+export async function listActiveReminderSyncItems() {
+  const db = await getDatabase();
+  return db.getAllAsync<ReminderSyncItem>(
+    `
+      SELECT lesions.label AS lesion_label, reminders.next_exam_date AS next_exam_date
+      FROM reminders
+      INNER JOIN lesions ON lesions.id = reminders.lesion_id
+      WHERE reminders.is_active = 1
+      ORDER BY reminders.next_exam_date ASC, reminders.created_at DESC;
+    `
+  );
+}
+
 export async function getReminderById(id: string) {
   const db = await getDatabase();
   return db.getFirstAsync<Reminder>('SELECT * FROM reminders WHERE id = ? LIMIT 1;', id);

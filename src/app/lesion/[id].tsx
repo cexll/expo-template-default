@@ -69,8 +69,16 @@ function calcSignedChange(current: number, reference: number) {
 }
 
 export default function LesionDetailPage() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const lesionId = typeof id === 'string' ? id : '';
+  const params = useLocalSearchParams<{ id: string; reminderSync?: string; reminderPerm?: string }>();
+  const lesionId = typeof params.id === 'string' ? params.id : '';
+  const reminderSync = typeof params.reminderSync === 'string' ? params.reminderSync : '';
+  const reminderPerm = typeof params.reminderPerm === 'string' ? params.reminderPerm : '';
+  const reminderBannerText =
+    reminderSync === 'ok'
+      ? `随访提醒已同步（通知权限：${reminderPerm || 'unknown'}）`
+      : reminderSync === 'fail'
+        ? `随访提醒同步失败（仍以本地为准；通知权限：${reminderPerm || 'unknown'}）`
+        : null;
 
   const { data: lesion } = useLesion(lesionId);
   const { data: examinations = [] } = useExaminations(lesionId);
@@ -123,6 +131,11 @@ export default function LesionDetailPage() {
             <Text className="mb-1 text-lg font-bold text-primary">{lesion.label}</Text>
             <Text className="text-sm text-neutral-text">暂无检查记录</Text>
           </Card>
+          {reminderBannerText ? (
+            <Card className="mx-4 mt-3 p-3">
+              <Text className="text-xs text-neutral-text">{reminderBannerText}</Text>
+            </Card>
+          ) : null}
 
           <View className="mx-4 mt-4 flex-row gap-3">
             <View className="flex-1">
@@ -191,6 +204,11 @@ export default function LesionDetailPage() {
             ) : null}
           </View>
         </Card>
+        {reminderBannerText ? (
+          <Card className="mx-4 mt-3 p-3">
+            <Text className="text-xs text-neutral-text">{reminderBannerText}</Text>
+          </Card>
+        ) : null}
 
         <View className="mx-4 mt-4 flex-row gap-3">
           {hasComparison ? (
@@ -198,7 +216,7 @@ export default function LesionDetailPage() {
               <Button
                 title="查看对比"
                 variant="outline"
-                onPress={() => router.push(`/lesion/${id}/compare`)}
+                onPress={() => router.push(`/lesion/${lesionId}/compare`)}
                 fullWidth
               />
             </View>

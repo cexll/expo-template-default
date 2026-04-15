@@ -4,6 +4,7 @@ import { getDatabase } from '@/lib/db';
 import type { Lesion, Reminder } from '@/lib/db/types';
 import type { ReportImageAsset } from '@/lib/report-images';
 import { cleanupPersistedReportImages, persistReportImages, type PersistedReportImage } from '@/lib/report-image-storage';
+import { deriveAutoReminder } from '@/lib/reminder-calculator';
 
 type DiseaseType = Lesion['disease_type'];
 
@@ -39,13 +40,79 @@ function formatExamDate(value: unknown) {
   return today.toISOString().slice(0, 10);
 }
 
-function addDays(isoDate: string, days: number) {
-  const date = new Date(isoDate);
-  if (Number.isNaN(date.getTime())) {
-    return null;
+function deriveNextExamDate(args: {
+  diseaseType: DiseaseType;
+  examDate: string;
+  recognized: Record<string, unknown>;
+}) {
+  const tirads = typeof args.recognized.tirads === 'string' ? args.recognized.tirads : null;
+  const birads = typeof args.recognized.birads === 'string' ? args.recognized.birads : null;
+  const lungRads = typeof args.recognized.lung_rads === 'string' ? args.recognized.lung_rads : null;
+  return deriveAutoReminder({
+    diseaseType: args.diseaseType,
+    examDate: args.examDate,
+    tirads,
+    birads,
+    lungRads,
+  });
+}
+
+async function upsertAutoReminderWithDb(args: {
+  db: SQLiteDatabase;
+  lesionId: string;
+  diseaseType: DiseaseType;
+  examDate: string;
+  recognized: Record<string, unknown>;
+}) {
+  const derivation = deriveNextExamDate({
+    diseaseType: args.diseaseType,
+    examDate: args.examDate,
+    recognized: args.recognized,
+  });
+
+  const reminders = await listRemindersByLesionWithDb(args.db, args.lesionId);
+  const activeReminder = reminders.find((reminder) => reminder.is_active === 1);
+
+  // Respect manual overrides: a user-set follow-up date should not be overwritten by auto derivation.
+  if (activeReminder && activeReminder.source === 'manual') {
+    return;
   }
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
+
+  if (derivation.kind === 'no_auto') {
+    // High-risk grades: avoid routine auto reminders. If an auto reminder exists, deactivate it.
+    if (activeReminder && activeReminder.source === 'auto') {
+      await args.db.runAsync(
+        "UPDATE reminders SET is_active = 0, updated_at = datetime('now') WHERE id = ?;",
+        activeReminder.id
+      );
+    }
+    return;
+  }
+
+  const nextExamDate = derivation.nextExamDate;
+  if (activeReminder) {
+    await args.db.runAsync(
+      "UPDATE reminders SET next_exam_date = ?, source = ?, is_active = ?, updated_at = datetime('now') WHERE id = ?;",
+      nextExamDate,
+      'auto',
+      1,
+      activeReminder.id
+    );
+    return;
+  }
+
+  await args.db.runAsync(
+    `
+      INSERT INTO reminders (
+        id, lesion_id, next_exam_date, source, is_active
+      ) VALUES (?, ?, ?, ?, ?);
+    `,
+    makeId('reminder'),
+    args.lesionId,
+    nextExamDate,
+    'auto',
+    1
+  );
 }
 
 const DISEASE_LABELS: Record<DiseaseType, string> = {
@@ -215,35 +282,13 @@ export async function saveMatchRecordAtomic(
           if (__DEV__ && args.debugFailStep === 'reminder') {
             throw new Error('入库失败');
           }
-
-          const nextExamDate = addDays(examDate, 180);
-          if (nextExamDate) {
-            const reminders = await listRemindersByLesionWithDb(db, lesionId);
-            const activeReminder = reminders.find((reminder) => reminder.is_active === 1);
-
-            if (activeReminder) {
-              await db.runAsync(
-                "UPDATE reminders SET next_exam_date = ?, source = ?, is_active = ?, updated_at = datetime('now') WHERE id = ?;",
-                nextExamDate,
-                'auto',
-                1,
-                activeReminder.id
-              );
-            } else {
-              await db.runAsync(
-                `
-                  INSERT INTO reminders (
-                    id, lesion_id, next_exam_date, source, is_active
-                  ) VALUES (?, ?, ?, ?, ?);
-                `,
-                makeId('reminder'),
-                lesionId,
-                nextExamDate,
-                'auto',
-                1
-              );
-            }
-          }
+          await upsertAutoReminderWithDb({
+            db,
+            lesionId,
+            diseaseType: nextDiseaseType,
+            examDate,
+            recognized: args.recognized,
+          });
         }
 
         return { lesionId, examinationId };
@@ -347,35 +392,13 @@ export async function saveMatchRecordAtomic(
         if (__DEV__ && args.debugFailStep === 'reminder') {
           throw new Error('入库失败');
         }
-
-        const nextExamDate = addDays(examDate, 180);
-        if (nextExamDate) {
-          const reminders = await listRemindersByLesionWithDb(db, lesionId);
-          const activeReminder = reminders.find((reminder) => reminder.is_active === 1);
-
-          if (activeReminder) {
-            await db.runAsync(
-              "UPDATE reminders SET next_exam_date = ?, source = ?, is_active = ?, updated_at = datetime('now') WHERE id = ?;",
-              nextExamDate,
-              'auto',
-              1,
-              activeReminder.id
-            );
-          } else {
-            await db.runAsync(
-              `
-                INSERT INTO reminders (
-                  id, lesion_id, next_exam_date, source, is_active
-                ) VALUES (?, ?, ?, ?, ?);
-              `,
-              makeId('reminder'),
-              lesionId,
-              nextExamDate,
-              'auto',
-              1
-            );
-          }
-        }
+        await upsertAutoReminderWithDb({
+          db,
+          lesionId,
+          diseaseType: args.diseaseType ?? 'thyroid',
+          examDate,
+          recognized: args.recognized,
+        });
       }
 
       return { lesionId, examinationId };
