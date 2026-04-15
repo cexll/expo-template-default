@@ -12,7 +12,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Tag } from '@/components/ui/Tag';
 import { PaywallSheet } from '@/components/PaywallSheet';
 import { canUseFeature, useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
-import { api } from '@/lib/api';
+import { ApiError, api } from '@/lib/api';
 import { parseReportImageAssetsParam, stringifyReportImageAssetsParam } from '@/lib/report-images';
 
 type Field = {
@@ -193,12 +193,26 @@ export default function RecognizePage() {
   const [fields, setFields] = useState<Field[]>(() => buildInitialFields('thyroid'));
   const [error, setError] = useState('');
   const [paywallVisible, setPaywallVisible] = useState(false);
+  const [quotaPaywallForced, setQuotaPaywallForced] = useState(false);
 
   const requestIdRef = useRef(0);
   const autoRunRef = useRef(false);
 
   const { data: subscriptionStatus, isLoading: subscriptionLoading } = useSubscriptionStatus();
-  const quotaBlocked = Boolean(subscriptionStatus && !canUseFeature(subscriptionStatus, 'ai_recognize'));
+  const quotaBlockedFromStatus = Boolean(subscriptionStatus && !canUseFeature(subscriptionStatus, 'ai_recognize'));
+  const quotaBlocked = quotaBlockedFromStatus || quotaPaywallForced;
+
+  useEffect(() => {
+    if (!subscriptionStatus) return;
+    const explicitRemaining = subscriptionStatus.featureRemaining?.ai_recognize;
+    if (subscriptionStatus.isActive) {
+      setQuotaPaywallForced(false);
+      return;
+    }
+    if (typeof explicitRemaining === 'number' && explicitRemaining > 0) {
+      setQuotaPaywallForced(false);
+    }
+  }, [subscriptionStatus]);
 
   const runRecognize = useCallback(async () => {
     const requestId = requestIdRef.current + 1;
@@ -259,7 +273,13 @@ export default function RecognizePage() {
       setFields([...mapped, ...extras]);
     } catch (e) {
       if (requestIdRef.current !== requestId) return;
-      setError(e instanceof Error ? e.message : '识别失败，请稍后重试');
+      if (e instanceof ApiError && e.status === 403) {
+        setQuotaPaywallForced(true);
+        setPaywallVisible(true);
+        setError('本月AI识别次数已用完');
+      } else {
+        setError(e instanceof Error ? e.message : '识别失败，请稍后重试');
+      }
     } finally {
       if (requestIdRef.current !== requestId) return;
       setLoading(false);
@@ -276,6 +296,7 @@ export default function RecognizePage() {
   const confirmedCount = fields.filter(isConfirmedField).length;
   const totalCount = fields.length;
   const requiredFilled = fields.filter((field) => field.required).every(isValidFieldValue);
+  const paywallActive = quotaBlocked || paywallVisible;
 
   const updateField = useCallback((key: string, value: string) => {
     setFields((previousFields) =>
@@ -402,15 +423,19 @@ export default function RecognizePage() {
           <Button
             title="下一步 — 匹配病灶"
             fullWidth
-            disabled={!requiredFilled || quotaBlocked}
+            disabled={!requiredFilled || paywallActive}
             onPress={() => {
+              if (paywallActive) {
+                setPaywallVisible(true);
+                return;
+              }
               const data = Object.fromEntries(fields.map((field) => [field.key, field.value]));
               router.push({
                 pathname: '/record/match' as any,
                 params: {
                   recognizedData: JSON.stringify(data),
                   diseaseType,
-              images: imagesParam ?? stringifyReportImageAssetsParam(imageAssets),
+                  images: imagesParam ?? stringifyReportImageAssetsParam(imageAssets),
                 },
               });
             }}

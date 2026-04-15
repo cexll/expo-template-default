@@ -22,6 +22,16 @@ jest.mock('expo-file-system/legacy', () => ({
 const mockApiPost = jest.fn();
 
 jest.mock('@/lib/api', () => ({
+  ApiError: class ApiError extends Error {
+    code: number;
+    status: number;
+    constructor(message: string, code: number, status: number) {
+      super(message);
+      this.name = 'ApiError';
+      this.code = code;
+      this.status = status;
+    }
+  },
   api: {
     post: (...args: any[]) => mockApiPost(...args),
   },
@@ -206,6 +216,43 @@ describe('RecognizePage', () => {
 
     expect(mockReadAsStringAsync).not.toHaveBeenCalled();
     expect(mockApiPost).not.toHaveBeenCalled();
+  });
+
+  it('treats 403 quota errors as paywall-active and blocks manual progression', async () => {
+    const { useLocalSearchParams, router } = require('expo-router');
+    const { ApiError } = require('@/lib/api');
+
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      images: JSON.stringify(['file:///a.png']),
+      diseaseType: 'lung',
+    });
+
+    // Status payload may be missing explicit remaining counts; backend 403 must still
+    // force paywall gating and disable progression.
+    mockUseSubscriptionStatus.mockReturnValue({ data: { isActive: false }, isLoading: false });
+
+    mockReadAsStringAsync.mockResolvedValueOnce('BASE64_A');
+    mockApiPost.mockRejectedValue(new ApiError('ai recognize quota exceeded', 403, 403));
+
+    render(<RecognizePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('升级解锁')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('先不了，继续免费版'));
+
+    // Must still initialize the lung-specific field set.
+    expect(screen.getByText(/^密度/)).toBeTruthy();
+    expect(screen.getByText('磨玻璃')).toBeTruthy();
+
+    fireEvent.changeText(screen.getByPlaceholderText('请输入部位'), '右上叶前段');
+    fireEvent.changeText(screen.getByPlaceholderText('请输入大小(长)'), '6.2');
+    fireEvent.press(screen.getByText('2'));
+    fireEvent.press(screen.getByText('磨玻璃'));
+    fireEvent.press(screen.getByText('下一步 — 匹配病灶'));
+
+    expect(router.push).not.toHaveBeenCalled();
   });
 
   it('initializes disease fields but blocks Next/Match while AI quota paywall is active', async () => {
