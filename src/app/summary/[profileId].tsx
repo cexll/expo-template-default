@@ -167,9 +167,9 @@ export default function SummaryPage() {
       const allExams = examinations[index]?.data ?? [];
       const windowExams = allExams.slice(0, 3);
 
-      const latest = windowExams[0] ?? null;
-      const previous = windowExams.length > 1 ? windowExams[1] : null;
-      const baseline = windowExams.length > 0 ? windowExams[windowExams.length - 1] : null;
+      const latest = allExams[0] ?? null;
+      const previous = allExams.length > 1 ? allExams[1] : null;
+      const baseline = allExams.length > 0 ? allExams[allExams.length - 1] : null;
 
       const latestSize = latest ? formatSize(latest.size_x, latest.size_y, latest.size_z) : '暂无检查';
       const radsGrade = latest ? getRads(latest) : '待补充分级';
@@ -179,7 +179,7 @@ export default function SummaryPage() {
       const previousSizeX = previous?.size_x ?? null;
 
       const vsBaseline =
-        latestSizeX !== null && baselineSizeX !== null && windowExams.length >= 2
+        latestSizeX !== null && baselineSizeX !== null && allExams.length >= 2
           ? calcChange(latestSizeX, baselineSizeX)
           : null;
       const vsPrevious =
@@ -219,7 +219,7 @@ export default function SummaryPage() {
       const changedRows = qualitativeRows.filter((row) => row.hasChanged && row.key !== radsKey);
       const displayRows =
         windowExams.length >= 2
-          ? [...(radsRow ? [radsRow] : []), ...changedRows.slice(0, 2)]
+          ? [...(radsRow ? [radsRow] : []), ...changedRows]
           : [];
 
       const reminder = remindersByLesionId.get(lesion.id) ?? null;

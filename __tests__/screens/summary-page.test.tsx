@@ -164,4 +164,41 @@ describe('SummaryPage UI contract basics', () => {
     expect(screen.queryByText('较上次')).toBeNull();
     expect(screen.queryByText('较基线')).toBeNull();
   });
+
+  it('uses the earliest exam for baseline deltas and renders every changed qualitative row when 4+ exams exist', () => {
+    const { useLocalSearchParams } = require('expo-router');
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ profileId: 'profile-1' });
+
+    mockUseSubscriptionStatus.mockReturnValue({ data: { isActive: true }, isLoading: false });
+    mockUseProfile.mockReturnValue({
+      data: { id: 'profile-1', nickname: '本人', gender: 'female', birth_year: 1990, avatar_uri: null, sort_order: 0 },
+      isLoading: false,
+      isFetching: false,
+    });
+
+    mockUseLesions.mockReturnValue({
+      data: [
+        { id: 'l1', profile_id: 'profile-1', disease_type: 'thyroid', label: '结节', location: '左叶', is_archived: 0 } as any,
+      ],
+    });
+
+    mockUseActiveReminders.mockReturnValue({ data: [] });
+    mockUseQueries.mockReturnValue([
+      {
+        data: [
+          { id: 'e4', lesion_id: 'l1', exam_date: '2026-04-01', size_x: 8.0, size_y: null, size_z: null, tirads: '3', birads: null, lung_rads: null, calcification: '点状强回声', echo_type: '低回声', border: '模糊', density: null, morphology: null, pleural_pull: null } as any,
+          { id: 'e3', lesion_id: 'l1', exam_date: '2026-03-01', size_x: 7.8, size_y: null, size_z: null, tirads: '3', birads: null, lung_rads: null, calcification: '无', echo_type: '等回声', border: '清晰', density: null, morphology: null, pleural_pull: null } as any,
+          { id: 'e2', lesion_id: 'l1', exam_date: '2026-02-01', size_x: 7.5, size_y: null, size_z: null, tirads: '3', birads: null, lung_rads: null, calcification: '无', echo_type: '等回声', border: '清晰', density: null, morphology: null, pleural_pull: null } as any,
+          { id: 'e1', lesion_id: 'l1', exam_date: '2025-12-01', size_x: 6.0, size_y: null, size_z: null, tirads: '3', birads: null, lung_rads: null, calcification: '无', echo_type: '高回声', border: '规整', density: null, morphology: null, pleural_pull: null } as any,
+        ],
+      },
+    ]);
+
+    renderWithQueryClient(<SummaryPage />);
+
+    expect(screen.getByText('▲ +2.0mm (+33%)')).toBeTruthy();
+    expect(screen.getByText('钙化')).toBeTruthy();
+    expect(screen.getByText('回声')).toBeTruthy();
+    expect(screen.getByText('边界')).toBeTruthy();
+  });
 });
