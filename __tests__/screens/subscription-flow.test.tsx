@@ -69,7 +69,7 @@ describe('subscription order flow', () => {
       router: { push: jest.Mock };
     };
 
-    apiMock.post.mockResolvedValue({ order_id: 'ord_1' });
+    apiMock.post.mockResolvedValue({ order_id: 'ord_1', amount: 39.9, currency: 'CNY' });
 
     render(<SubscriptionPage />);
 
@@ -91,6 +91,8 @@ describe('subscription order flow', () => {
           order_id: 'ord_1',
           plan: 'monthly',
           provider: 'alipay',
+          amount: '39.9',
+          currency: 'CNY',
         }),
       })
     );
@@ -115,8 +117,45 @@ describe('subscription order flow', () => {
       expect(screen.getByText('ord_1')).toBeTruthy();
       expect(screen.getByText('年度会员')).toBeTruthy();
       expect(screen.getByText('微信支付')).toBeTruthy();
+      expect(screen.getByText('待支付平台确认')).toBeTruthy();
       expect(screen.getByText('支付完成后更新')).toBeTruthy();
     });
+
+    expect(screen.queryByText('已解锁会员权益')).toBeNull();
+  });
+
+  it('shows unlocked rights only after live premium status turns active', async () => {
+    const expoRouter = require('expo-router') as {
+      useLocalSearchParams: jest.Mock;
+    };
+
+    expoRouter.useLocalSearchParams.mockReturnValue({
+      order_id: 'ord_2',
+      plan: 'yearly',
+      provider: 'wechat',
+      amount: '399',
+      currency: 'CNY',
+    });
+    apiMock.get.mockResolvedValue({
+      plan: 'yearly',
+      is_premium: true,
+      expires_at: '2026-12-31T00:00:00.000Z',
+    });
+
+    renderWithQueryClient(<SubscriptionSuccessPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('订阅已生效')).toBeTruthy();
+      expect(screen.getByText('会员权益已可用，AI识别与摘要导出额度限制已解除')).toBeTruthy();
+      expect(screen.getByText('¥399.00')).toBeTruthy();
+      expect(screen.getByText('2026-12-31T00:00:00.000Z')).toBeTruthy();
+      expect(screen.getByText('已解锁会员权益')).toBeTruthy();
+      expect(screen.getByText('AI识别次数')).toBeTruthy();
+      expect(screen.getByText('云端同步备份')).toBeTruthy();
+      expect(screen.getByText('会员支持（开发中）')).toBeTruthy();
+    });
+
+    expect(screen.getAllByText('无限次 ✓')).toHaveLength(2);
   });
 
   it('reads the current plan from subscription state on settings', async () => {

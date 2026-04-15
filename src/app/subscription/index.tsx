@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
+import { SUBSCRIPTION_COMPARISON_ROWS } from '@/lib/subscription/catalog';
 
 type Plan = 'monthly' | 'yearly';
 type Provider = 'wechat' | 'alipay';
@@ -15,17 +16,6 @@ type CreateOrderResponse = {
   amount?: number;
   currency?: string;
 };
-
-const FEATURES = [
-  { name: '档案人数量', free: '最多3人', paid: '无限' },
-  { name: '病灶数量', free: '每人5个', paid: '无限' },
-  { name: '检查记录', free: '每病灶10次', paid: '无限' },
-  { name: 'AI识别次数', free: '5次/月', paid: '无限' },
-  { name: '就诊摘要导出', free: '2次/月', paid: '无限' },
-  { name: '时间线与对比', free: '完整', paid: '完整' },
-  { name: '随访提醒', free: '完整', paid: '完整' },
-  { name: '云端同步', free: '不支持', paid: '支持' },
-];
 
 export default function SubscriptionPage() {
   const [plan, setPlan] = useState<Plan>('yearly');
@@ -111,7 +101,7 @@ export default function SubscriptionPage() {
             <Text className="w-20 text-center text-sm font-semibold text-primary">免费版</Text>
             <Text className="w-20 text-center text-sm font-semibold text-primary">会员</Text>
           </View>
-          {FEATURES.map((feature) => (
+          {SUBSCRIPTION_COMPARISON_ROWS.map((feature) => (
             <View key={feature.name} className="flex-row border-b border-neutral-bg py-3">
               <Text className="flex-1 text-sm text-primary">{feature.name}</Text>
               <Text className="w-20 text-center text-xs text-neutral-text">{feature.free}</Text>

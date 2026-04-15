@@ -1,6 +1,7 @@
 import { View, Text, Modal, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { Button } from './ui/Button';
+import { PAYWALL_MEMBER_FEATURES } from '@/lib/subscription/catalog';
 
 type PaywallSheetProps = {
   visible: boolean;
@@ -10,13 +11,6 @@ type PaywallSheetProps = {
   subtitle?: string;
   ctaLabel?: string;
 };
-
-const MEMBER_FEATURES = [
-  '无限次 AI 识别，无需等待下月',
-  '无限档案人、无限病灶管理',
-  '云端加密备份，多设备同步',
-  '无限次就诊摘要导出',
-];
 
 function FeatureRow({ text }: { text: string }) {
   return (
@@ -67,7 +61,7 @@ export function PaywallSheet({ visible, onClose, feature, title, subtitle, ctaLa
           </View>
 
           <View className="mt-6 gap-3">
-            {MEMBER_FEATURES.map((item) => (
+            {PAYWALL_MEMBER_FEATURES.map((item) => (
               <FeatureRow key={item} text={item} />
             ))}
           </View>

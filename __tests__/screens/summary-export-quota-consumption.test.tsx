@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import SummaryPage from '@/app/summary/[profileId]';
 import { api } from '@/lib/api';
-import { readLocalSummaryExportUsed } from '@/lib/subscription/local-quota';
+import { formatLocalMonth, readLocalSummaryExportUsed, writeLocalSummaryExportUsed } from '@/lib/subscription/local-quota';
 
 jest.mock('expo-router', () => ({
   useLocalSearchParams: jest.fn(),
@@ -149,5 +149,44 @@ describe('SummaryPage export quota consumption', () => {
       expect(screen.getByText('升级解锁')).toBeTruthy();
     });
     expect(mockShareAsync).toHaveBeenCalledTimes(2);
+  });
+
+  it('restores export access after premium activation even when local free-tier usage is already exhausted', async () => {
+    const { useLocalSearchParams } = require('expo-router');
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ profileId: 'profile-1' });
+
+    mockUseProfile.mockReturnValue({
+      data: { id: 'profile-1', nickname: '本人', gender: 'female', birth_year: 1990, avatar_uri: null, sort_order: 0 } as any,
+      isLoading: false,
+      isFetching: false,
+    });
+    mockUseLesions.mockReturnValue({ data: [] });
+    mockUseActiveReminders.mockReturnValue({ data: [] });
+
+    apiGetMock.mockResolvedValue({
+      plan: 'yearly',
+      is_premium: true,
+      summary_export_used: 2,
+      summary_export_limit: -1,
+      ai_recognize_used: 5,
+      ai_recognize_limit: -1,
+      expires_at: '2026-12-31T00:00:00.000Z',
+    } as any);
+
+    mockIsAvailableAsync.mockResolvedValue(true);
+    mockShareAsync.mockResolvedValue(undefined);
+
+    writeLocalSummaryExportUsed(formatLocalMonth(), 2);
+
+    const { queryClient } = renderWithQueryClient(<SummaryPage />);
+
+    await waitFor(() => {
+      expect(queryClient.getQueryData(['subscription', 'status'])).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('导出为图片'));
+
+    await waitFor(() => expect(mockShareAsync).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText('升级解锁')).toBeNull();
   });
 });

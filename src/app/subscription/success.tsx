@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { formatSubscriptionPlan, useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
+import { PREMIUM_UNLOCKED_RIGHTS, formatPaymentAmount } from '@/lib/subscription/catalog';
 
 function pickParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -28,15 +29,17 @@ export default function PaymentSuccessPage() {
   const requestedPlan = pickParam(params.plan);
   const requestedProvider = pickParam(params.provider);
   const requestedAmount = pickParam(params.amount);
+  const requestedCurrency = pickParam(params.currency);
 
   const { data: status, error } = useSubscriptionStatus();
 
   const isActive = Boolean(status?.isActive);
   const planLabel = formatSubscriptionPlan(isActive ? status?.plan ?? 'free' : requestedPlan ?? status?.plan ?? 'free');
+  const amountLabel = formatPaymentAmount(requestedAmount, requestedCurrency) ?? '待支付平台确认';
 
   const title = isActive ? '订阅已生效' : orderId ? '订单已创建' : '订单信息缺失';
   const subtitle = isActive
-    ? '会员权益已可用'
+    ? '会员权益已可用，AI识别与摘要导出额度限制已解除'
     : orderId
       ? '当前还未收到支付完成确认，支付完成后会自动开通（可能有延迟）'
       : '请返回上一页重新下单';
@@ -64,7 +67,7 @@ export default function PaymentSuccessPage() {
         </View>
         <View className="flex-row justify-between py-2">
           <Text className="font-mono text-sm text-neutral-text">金额</Text>
-          <Text className="font-mono text-sm text-primary">{requestedAmount ?? '-'}</Text>
+          <Text className="font-mono text-sm text-primary">{amountLabel}</Text>
         </View>
         <View className="flex-row justify-between py-2">
           <Text className="text-sm text-neutral-text">到期时间</Text>
@@ -73,6 +76,23 @@ export default function PaymentSuccessPage() {
           </Text>
         </View>
       </Card>
+
+      {isActive ? (
+        <Card className="mb-8 w-full">
+          <Text className="text-sm font-semibold text-primary">已解锁会员权益</Text>
+          <View className="mt-4 gap-3">
+            {PREMIUM_UNLOCKED_RIGHTS.map((item) => (
+              <View key={item.label} className="flex-row items-center justify-between">
+                <Text className="text-sm text-neutral-text">{item.label}</Text>
+                <Text className={`text-sm font-semibold ${item.tone === 'positive' ? 'text-stable-text' : 'text-primary'}`}>
+                  {item.value}
+                  {item.tone === 'positive' ? ' ✓' : ''}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </Card>
+      ) : null}
 
       {error instanceof Error ? <Text className="mb-3 text-xs text-neutral-text">订阅状态获取失败：{error.message}</Text> : null}
       <Button title="开始使用" fullWidth onPress={() => router.replace('/(main)')} />
