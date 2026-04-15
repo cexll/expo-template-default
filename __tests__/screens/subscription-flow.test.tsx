@@ -6,6 +6,10 @@ import SubscriptionPage from '@/app/subscription';
 import SubscriptionSuccessPage from '@/app/subscription/success';
 import SettingsPage from '@/app/(main)/settings';
 import { api } from '@/lib/api';
+import {
+  clearPendingSubscriptionOrderContext,
+  savePendingSubscriptionOrderContext,
+} from '@/lib/subscription/order-context';
 import { useAuth } from '@/providers/auth-provider';
 
 jest.mock('expo-router', () => ({
@@ -60,8 +64,36 @@ function renderWithQueryClient(node: React.ReactElement) {
 }
 
 describe('subscription order flow', () => {
+  const originalLocalStorage = globalThis.localStorage;
+
+  beforeEach(() => {
+    const store = new Map<string, string>();
+    // @ts-expect-error test shim
+    globalThis.localStorage = {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        store.set(key, value);
+      },
+      removeItem: (key: string) => {
+        store.delete(key);
+      },
+      clear: () => store.clear(),
+    };
+
+    useAuthMock.mockReturnValue({
+      user: { id: 'user-1', phone: '13800000000' },
+      signOut: jest.fn(),
+    });
+    apiMock.get.mockResolvedValue({ plan: 'free', is_active: false, expires_at: null });
+  });
+
   afterEach(() => {
     jest.clearAllMocks();
+    clearPendingSubscriptionOrderContext('ord_1', 'user-1');
+    clearPendingSubscriptionOrderContext('ord_2', 'user-1');
+    clearPendingSubscriptionOrderContext('ord_3', 'user-1');
+    // @ts-expect-error test shim
+    globalThis.localStorage = originalLocalStorage;
   });
 
   it('submits the selected plan/provider and navigates with order context', async () => {
@@ -71,7 +103,7 @@ describe('subscription order flow', () => {
 
     apiMock.post.mockResolvedValue({ order_id: 'ord_1', amount: 39.9, currency: 'CNY' });
 
-    render(<SubscriptionPage />);
+    renderWithQueryClient(<SubscriptionPage />);
 
     fireEvent.press(screen.getByText('月付'));
     fireEvent.press(screen.getByText('支付宝'));
@@ -136,6 +168,19 @@ describe('subscription order flow', () => {
       amount: '399',
       currency: 'CNY',
     });
+    savePendingSubscriptionOrderContext({
+      accountKey: 'user-1',
+      orderId: 'ord_2',
+      plan: 'yearly',
+      provider: 'wechat',
+      amount: '399',
+      currency: 'CNY',
+      baseline: {
+        isActive: false,
+        plan: 'free',
+        expiresAt: null,
+      },
+    });
     apiMock.get.mockResolvedValue({
       plan: 'yearly',
       is_premium: true,
@@ -158,11 +203,67 @@ describe('subscription order flow', () => {
     expect(screen.getAllByText('无限次 ✓')).toHaveLength(2);
   });
 
-  it('reads the current plan from subscription state on settings', async () => {
-    useAuthMock.mockReturnValue({
-      user: { phone: '13800000000' },
-      signOut: jest.fn(),
+  it('keeps the success page pending when a pre-existing premium snapshot does not confirm the current order', async () => {
+    const expoRouter = require('expo-router') as {
+      useLocalSearchParams: jest.Mock;
+    };
+
+    expoRouter.useLocalSearchParams.mockReturnValue({
+      order_id: 'ord_3',
+      plan: 'yearly',
+      provider: 'wechat',
     });
+    savePendingSubscriptionOrderContext({
+      accountKey: 'user-1',
+      orderId: 'ord_3',
+      plan: 'yearly',
+      provider: 'wechat',
+      baseline: {
+        isActive: true,
+        plan: 'yearly',
+        expiresAt: '2026-12-31T00:00:00.000Z',
+      },
+    });
+    apiMock.get.mockResolvedValue({
+      plan: 'yearly',
+      is_premium: true,
+      expires_at: '2026-12-31T00:00:00.000Z',
+    });
+
+    renderWithQueryClient(<SubscriptionSuccessPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('订单已创建')).toBeTruthy();
+      expect(screen.getByText('支付完成后更新')).toBeTruthy();
+    });
+
+    expect(screen.queryByText('订阅已生效')).toBeNull();
+    expect(screen.queryByText('已解锁会员权益')).toBeNull();
+  });
+
+  it('shows missing-order copy even if a global premium status already exists', async () => {
+    const expoRouter = require('expo-router') as {
+      useLocalSearchParams: jest.Mock;
+    };
+
+    expoRouter.useLocalSearchParams.mockReturnValue({});
+    apiMock.get.mockResolvedValue({
+      plan: 'yearly',
+      is_premium: true,
+      expires_at: '2026-12-31T00:00:00.000Z',
+    });
+
+    renderWithQueryClient(<SubscriptionSuccessPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('订单信息缺失')).toBeTruthy();
+      expect(screen.getByText('请返回上一页重新下单')).toBeTruthy();
+    });
+
+    expect(screen.queryByText('订阅已生效')).toBeNull();
+  });
+
+  it('reads the current plan from subscription state on settings', async () => {
     apiMock.get.mockResolvedValue({ plan: 'yearly', is_active: true, expires_at: null });
 
     renderWithQueryClient(<SettingsPage />);

@@ -34,4 +34,16 @@ describe('local summary-export quota shadow', () => {
     expect(bumpLocalSummaryExportUsed(month, 1)).toBe(2);
     expect(readLocalSummaryExportUsed(month)).toBe(2);
   });
+
+  it('isolates summary export usage by account scope within the same month', () => {
+    const month = '2026-04';
+
+    expect(bumpLocalSummaryExportUsed(month, 1, 'user-a')).toBe(1);
+    expect(bumpLocalSummaryExportUsed(month, 1, 'user-a')).toBe(2);
+    expect(bumpLocalSummaryExportUsed(month, 1, 'user-b')).toBe(1);
+
+    expect(readLocalSummaryExportUsed(month, 'user-a')).toBe(2);
+    expect(readLocalSummaryExportUsed(month, 'user-b')).toBe(1);
+    expect(readLocalSummaryExportUsed(month)).toBe(0);
+  });
 });

@@ -12,8 +12,8 @@ export type SubscriptionStatus = {
   featureRemaining?: Record<string, number>;
 };
 
-const subscriptionKeys = {
-  status: () => ['subscription', 'status'] as const,
+export const subscriptionKeys = {
+  status: (accountKey?: string | null) => ['subscription', 'status', accountKey ?? 'anonymous'] as const,
 };
 
 function pickString(value: unknown) {
@@ -28,7 +28,7 @@ function pickNumber(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-export function normalizeSubscriptionStatus(raw: unknown): SubscriptionStatus {
+export function normalizeSubscriptionStatus(raw: unknown, accountKey?: string | null): SubscriptionStatus {
   if (!raw || typeof raw !== 'object') {
     return { plan: 'free', isActive: false, expiresAt: null };
   }
@@ -132,7 +132,7 @@ export function normalizeSubscriptionStatus(raw: unknown): SubscriptionStatus {
       })() ??
       0;
 
-    const localUsed = readLocalSummaryExportUsed(month);
+    const localUsed = readLocalSummaryExportUsed(month, accountKey);
     const localDelta = Math.max(0, localUsed - serverExportUsed);
 
     const exportRemaining = featureRemaining.summary_export;
@@ -165,11 +165,11 @@ export function canUseFeature(status: SubscriptionStatus, feature: SubscriptionF
   return true;
 }
 
-export function useSubscriptionStatus() {
+export function useSubscriptionStatus(accountKey?: string | null) {
   return useQuery({
-    queryKey: subscriptionKeys.status(),
+    queryKey: subscriptionKeys.status(accountKey),
     queryFn: async () => api.get<unknown>('/api/v1/subscription/status'),
-    select: normalizeSubscriptionStatus,
+    select: (raw) => normalizeSubscriptionStatus(raw, accountKey),
     retry: 1,
     staleTime: 15_000,
   });

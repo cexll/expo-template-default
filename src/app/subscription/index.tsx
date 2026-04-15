@@ -6,6 +6,9 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
 import { SUBSCRIPTION_COMPARISON_ROWS } from '@/lib/subscription/catalog';
+import { savePendingSubscriptionOrderContext } from '@/lib/subscription/order-context';
+import { useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
+import { useAuth } from '@/providers/auth-provider';
 
 type Plan = 'monthly' | 'yearly';
 type Provider = 'wechat' | 'alipay';
@@ -18,11 +21,14 @@ type CreateOrderResponse = {
 };
 
 export default function SubscriptionPage() {
+  const { user } = useAuth();
+  const accountKey = user?.id ?? user?.phone ?? null;
   const [plan, setPlan] = useState<Plan>('yearly');
   const [provider, setProvider] = useState<Provider>('wechat');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const requestIdRef = useRef(0);
+  const { data: subscriptionStatus } = useSubscriptionStatus(accountKey);
 
   const price = plan === 'yearly' ? '¥399' : '¥39.9';
   const period = plan === 'yearly' ? '/年' : '/月';
@@ -45,6 +51,20 @@ export default function SubscriptionPage() {
         return;
       }
 
+      savePendingSubscriptionOrderContext({
+        accountKey,
+        orderId,
+        plan,
+        provider,
+        amount: typeof data?.amount === 'number' ? String(data.amount) : null,
+        currency: typeof data?.currency === 'string' ? data.currency : null,
+        baseline: {
+          isActive: Boolean(subscriptionStatus?.isActive),
+          plan: subscriptionStatus?.plan ?? 'free',
+          expiresAt: subscriptionStatus?.expiresAt ?? null,
+        },
+      });
+
       const params: Record<string, string> = {
         order_id: orderId,
         plan,
@@ -64,7 +84,7 @@ export default function SubscriptionPage() {
       if (requestIdRef.current !== requestId) return;
       setSubmitting(false);
     }
-  }, [plan, provider]);
+  }, [accountKey, plan, provider, subscriptionStatus]);
 
   return (
     <SafeAreaView className="flex-1 bg-page-bg">

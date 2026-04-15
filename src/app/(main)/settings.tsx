@@ -50,7 +50,8 @@ function SettingsRow({
 
 export default function SettingsPage() {
   const { user, signOut } = useAuth();
-  const { data: subscriptionStatus, isLoading: subscriptionLoading } = useSubscriptionStatus();
+  const accountKey = user?.id ?? user?.phone ?? null;
+  const { data: subscriptionStatus, isLoading: subscriptionLoading } = useSubscriptionStatus(accountKey);
   const { data: profiles = [] } = useProfiles();
 
   const maskedPhone = user?.phone

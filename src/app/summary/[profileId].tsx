@@ -14,9 +14,10 @@ import { listExaminationsByLesion } from '@/lib/db/queries/examinations';
 import { useLesions } from '@/hooks/useLesions';
 import { useProfile } from '@/hooks/useProfiles';
 import { useActiveReminders } from '@/hooks/useReminders';
-import { canUseFeature, useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
+import { canUseFeature, subscriptionKeys, useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
 import type { Examination, Lesion } from '@/lib/db/types';
 import { bumpLocalSummaryExportUsed, formatLocalMonth } from '@/lib/subscription/local-quota';
+import { useAuth } from '@/providers/auth-provider';
 
 function formatSize(sizeX: number | null, sizeY: number | null, sizeZ: number | null) {
   const values = [sizeX, sizeY, sizeZ].filter((v): v is number => v !== null);
@@ -131,6 +132,8 @@ export default function SummaryPage() {
   const { profileId } = useLocalSearchParams<{ profileId: string }>();
   const id = typeof profileId === 'string' ? profileId : '';
 
+  const { user } = useAuth();
+  const accountKey = user?.id ?? user?.phone ?? null;
   const profileQuery = useProfile(id);
   const profile = profileQuery.data;
   const { data: lesions = [] } = useLesions(id);
@@ -142,7 +145,7 @@ export default function SummaryPage() {
   const [exportError, setExportError] = useState('');
   const [paywallVisible, setPaywallVisible] = useState(false);
 
-  const { data: subscriptionStatus, isLoading: subscriptionLoading } = useSubscriptionStatus();
+  const { data: subscriptionStatus, isLoading: subscriptionLoading } = useSubscriptionStatus(accountKey);
 
   const activeLesions = useMemo(() => lesions.filter((lesion) => lesion.is_archived === 0), [lesions]);
 
@@ -303,9 +306,9 @@ export default function SummaryPage() {
       });
 
       if (!subscriptionStatus.isActive) {
-        const localUsed = bumpLocalSummaryExportUsed(formatLocalMonth(), 1);
+        const localUsed = bumpLocalSummaryExportUsed(formatLocalMonth(), 1, accountKey);
         // Force subscription observers to re-run normalization (which applies the local quota shadow).
-        queryClient.setQueryData(['subscription', 'status'], (prev: unknown) => {
+        queryClient.setQueryData(subscriptionKeys.status(accountKey), (prev: unknown) => {
           if (!prev || typeof prev !== 'object') return prev;
           return { ...(prev as Record<string, unknown>), __local_summary_export_used: localUsed };
         });
@@ -315,7 +318,7 @@ export default function SummaryPage() {
     } finally {
       setExporting(false);
     }
-  }, [profile, queryClient, subscriptionLoading, subscriptionStatus]);
+  }, [accountKey, profile, queryClient, subscriptionLoading, subscriptionStatus]);
 
   if (!id) {
     return (

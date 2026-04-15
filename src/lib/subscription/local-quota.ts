@@ -1,3 +1,5 @@
+import { normalizeSubscriptionAccountScope } from '@/lib/subscription/account-scope';
+
 function pad2(value: number) {
   return value < 10 ? `0${value}` : `${value}`;
 }
@@ -10,8 +12,8 @@ export function formatLocalMonth(date = new Date()) {
 
 const SUMMARY_EXPORT_PREFIX = 'noduleArchive:usage:summary_export:';
 
-function storageKeyForSummaryExport(month: string) {
-  return `${SUMMARY_EXPORT_PREFIX}${month}`;
+function storageKeyForSummaryExport(month: string, accountKey?: string | null) {
+  return `${SUMMARY_EXPORT_PREFIX}${normalizeSubscriptionAccountScope(accountKey)}:${month}`;
 }
 
 function hasLocalStorage(): boolean {
@@ -22,10 +24,10 @@ function hasLocalStorage(): boolean {
   }
 }
 
-export function readLocalSummaryExportUsed(month = formatLocalMonth()) {
+export function readLocalSummaryExportUsed(month = formatLocalMonth(), accountKey?: string | null) {
   if (!hasLocalStorage()) return 0;
   try {
-    const raw = globalThis.localStorage.getItem(storageKeyForSummaryExport(month));
+    const raw = globalThis.localStorage.getItem(storageKeyForSummaryExport(month, accountKey));
     if (!raw) return 0;
     const parsed = Number(raw);
     if (!Number.isFinite(parsed) || parsed < 0) return 0;
@@ -35,18 +37,18 @@ export function readLocalSummaryExportUsed(month = formatLocalMonth()) {
   }
 }
 
-export function writeLocalSummaryExportUsed(month: string, used: number) {
+export function writeLocalSummaryExportUsed(month: string, used: number, accountKey?: string | null) {
   if (!hasLocalStorage()) return;
   const normalized = Number.isFinite(used) && used > 0 ? Math.floor(used) : 0;
   try {
-    globalThis.localStorage.setItem(storageKeyForSummaryExport(month), `${normalized}`);
+    globalThis.localStorage.setItem(storageKeyForSummaryExport(month, accountKey), `${normalized}`);
   } catch {
     // ignore persistence failures (for example private browsing)
   }
 }
 
-export function bumpLocalSummaryExportUsed(month = formatLocalMonth(), by = 1) {
-  const next = Math.max(0, readLocalSummaryExportUsed(month) + by);
-  writeLocalSummaryExportUsed(month, next);
+export function bumpLocalSummaryExportUsed(month = formatLocalMonth(), by = 1, accountKey?: string | null) {
+  const next = Math.max(0, readLocalSummaryExportUsed(month, accountKey) + by);
+  writeLocalSummaryExportUsed(month, next, accountKey);
   return next;
 }

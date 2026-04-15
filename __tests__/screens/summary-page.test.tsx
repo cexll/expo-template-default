@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import SummaryPage from '@/app/summary/[profileId]';
+import { useAuth } from '@/providers/auth-provider';
 
 const mockUseProfile = jest.fn();
 const mockUseLesions = jest.fn();
@@ -28,6 +29,10 @@ jest.mock('@/hooks/useReminders', () => ({
 jest.mock('@/hooks/useSubscriptionStatus', () => ({
   useSubscriptionStatus: () => mockUseSubscriptionStatus(),
   canUseFeature: () => true,
+}));
+
+jest.mock('@/providers/auth-provider', () => ({
+  useAuth: jest.fn(),
 }));
 
 const mockUseQueries = jest.fn();
@@ -56,6 +61,13 @@ function renderWithQueryClient(node: React.ReactElement) {
 describe('SummaryPage UI contract basics', () => {
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  beforeEach(() => {
+    jest.mocked(useAuth).mockReturnValue({
+      user: { id: 'user-1', phone: '13800000000' },
+      signOut: jest.fn(),
+    } as any);
   });
 
   it('rejects an invalid profile id', () => {

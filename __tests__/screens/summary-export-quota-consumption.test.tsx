@@ -3,8 +3,10 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import SummaryPage from '@/app/summary/[profileId]';
+import { subscriptionKeys } from '@/hooks/useSubscriptionStatus';
 import { api } from '@/lib/api';
 import { formatLocalMonth, readLocalSummaryExportUsed, writeLocalSummaryExportUsed } from '@/lib/subscription/local-quota';
+import { useAuth } from '@/providers/auth-provider';
 
 jest.mock('expo-router', () => ({
   useLocalSearchParams: jest.fn(),
@@ -44,6 +46,10 @@ jest.mock('@/lib/api', () => ({
   ApiError: class ApiError extends Error {},
 }));
 
+jest.mock('@/providers/auth-provider', () => ({
+  useAuth: jest.fn(),
+}));
+
 const mockUseProfile = jest.fn();
 const mockUseLesions = jest.fn();
 const mockUseActiveReminders = jest.fn();
@@ -69,6 +75,7 @@ jest.mock('@tanstack/react-query', () => {
 });
 
 const apiGetMock = jest.mocked(api.get);
+const useAuthMock = jest.mocked(useAuth);
 
 describe('SummaryPage export quota consumption', () => {
   const originalLocalStorage = globalThis.localStorage;
@@ -111,6 +118,11 @@ describe('SummaryPage export quota consumption', () => {
     const { useLocalSearchParams } = require('expo-router');
     (useLocalSearchParams as jest.Mock).mockReturnValue({ profileId: 'profile-1' });
 
+    useAuthMock.mockReturnValue({
+      user: { id: 'user-a', phone: '13800000000' },
+      signOut: jest.fn(),
+    } as any);
+
     mockUseProfile.mockReturnValue({
       data: { id: 'profile-1', nickname: '本人', gender: 'female', birth_year: 1990, avatar_uri: null, sort_order: 0 } as any,
       isLoading: false,
@@ -133,16 +145,16 @@ describe('SummaryPage export quota consumption', () => {
     const { queryClient } = renderWithQueryClient(<SummaryPage />);
 
     await waitFor(() => {
-      expect(queryClient.getQueryData(['subscription', 'status'])).toBeTruthy();
+      expect(queryClient.getQueryData(subscriptionKeys.status('user-a'))).toBeTruthy();
     });
 
     fireEvent.press(screen.getByText('导出为图片'));
     await waitFor(() => expect(mockShareAsync).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(readLocalSummaryExportUsed()).toBe(1));
+    await waitFor(() => expect(readLocalSummaryExportUsed(formatLocalMonth(), 'user-a')).toBe(1));
 
     fireEvent.press(screen.getByText('导出为图片'));
     await waitFor(() => expect(mockShareAsync).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(readLocalSummaryExportUsed()).toBe(2));
+    await waitFor(() => expect(readLocalSummaryExportUsed(formatLocalMonth(), 'user-a')).toBe(2));
 
     fireEvent.press(screen.getByText('导出为图片'));
     await waitFor(() => {
@@ -154,6 +166,11 @@ describe('SummaryPage export quota consumption', () => {
   it('restores export access after premium activation even when local free-tier usage is already exhausted', async () => {
     const { useLocalSearchParams } = require('expo-router');
     (useLocalSearchParams as jest.Mock).mockReturnValue({ profileId: 'profile-1' });
+
+    useAuthMock.mockReturnValue({
+      user: { id: 'user-a', phone: '13800000000' },
+      signOut: jest.fn(),
+    } as any);
 
     mockUseProfile.mockReturnValue({
       data: { id: 'profile-1', nickname: '本人', gender: 'female', birth_year: 1990, avatar_uri: null, sort_order: 0 } as any,
@@ -176,17 +193,79 @@ describe('SummaryPage export quota consumption', () => {
     mockIsAvailableAsync.mockResolvedValue(true);
     mockShareAsync.mockResolvedValue(undefined);
 
-    writeLocalSummaryExportUsed(formatLocalMonth(), 2);
+    writeLocalSummaryExportUsed(formatLocalMonth(), 2, 'user-a');
 
     const { queryClient } = renderWithQueryClient(<SummaryPage />);
 
     await waitFor(() => {
-      expect(queryClient.getQueryData(['subscription', 'status'])).toBeTruthy();
+      expect(queryClient.getQueryData(subscriptionKeys.status('user-a'))).toBeTruthy();
     });
 
     fireEvent.press(screen.getByText('导出为图片'));
 
     await waitFor(() => expect(mockShareAsync).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText('升级解锁')).toBeNull();
+  });
+
+  it('keeps summary export quota isolated between different signed-in users in the same browser', async () => {
+    const { useLocalSearchParams } = require('expo-router');
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ profileId: 'profile-1' });
+
+    mockUseProfile.mockReturnValue({
+      data: { id: 'profile-1', nickname: '本人', gender: 'female', birth_year: 1990, avatar_uri: null, sort_order: 0 } as any,
+      isLoading: false,
+      isFetching: false,
+    });
+    mockUseLesions.mockReturnValue({ data: [] });
+    mockUseActiveReminders.mockReturnValue({ data: [] });
+
+    apiGetMock.mockResolvedValue({
+      plan: 'free',
+      is_active: false,
+      summary_export_remaining: 2,
+      ai_recognize_remaining: 5,
+      expires_at: null,
+    } as any);
+
+    mockIsAvailableAsync.mockResolvedValue(true);
+    mockShareAsync.mockResolvedValue(undefined);
+
+    useAuthMock.mockReturnValue({
+      user: { id: 'user-a', phone: '13800000000' },
+      signOut: jest.fn(),
+    } as any);
+
+    const firstRender = renderWithQueryClient(<SummaryPage />);
+
+    await waitFor(() => {
+      expect(firstRender.queryByText('导出为图片')).toBeTruthy();
+      expect(firstRender.queryClient.getQueryData(subscriptionKeys.status('user-a'))).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('导出为图片'));
+    await waitFor(() => expect(mockShareAsync).toHaveBeenCalledTimes(1));
+    fireEvent.press(screen.getByText('导出为图片'));
+    await waitFor(() => expect(mockShareAsync).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(readLocalSummaryExportUsed(formatLocalMonth(), 'user-a')).toBe(2));
+
+    firstRender.unmount();
+
+    useAuthMock.mockReturnValue({
+      user: { id: 'user-b', phone: '13900000000' },
+      signOut: jest.fn(),
+    } as any);
+
+    const secondRender = renderWithQueryClient(<SummaryPage />);
+
+    await waitFor(() => {
+      expect(secondRender.queryClient.getQueryData(subscriptionKeys.status('user-b'))).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('导出为图片'));
+    await waitFor(() => expect(mockShareAsync).toHaveBeenCalledTimes(3));
+
+    expect(readLocalSummaryExportUsed(formatLocalMonth(), 'user-a')).toBe(2);
+    expect(readLocalSummaryExportUsed(formatLocalMonth(), 'user-b')).toBe(1);
     expect(screen.queryByText('升级解锁')).toBeNull();
   });
 });

@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import SummaryPage from '@/app/summary/[profileId]';
+import { useAuth } from '@/providers/auth-provider';
 
 const mockUseSubscriptionStatus = jest.fn();
 
@@ -72,7 +73,18 @@ jest.mock('@/hooks/useSubscriptionStatus', () => ({
   },
 }));
 
+jest.mock('@/providers/auth-provider', () => ({
+  useAuth: jest.fn(),
+}));
+
 describe('SummaryPage export', () => {
+  beforeEach(() => {
+    jest.mocked(useAuth).mockReturnValue({
+      user: { id: 'user-1', phone: '13800000000' },
+      signOut: jest.fn(),
+    } as any);
+  });
+
   afterEach(() => {
     jest.clearAllMocks();
   });
