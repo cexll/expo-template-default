@@ -7,6 +7,7 @@ import { listProfiles } from '@/lib/db/queries/profiles';
 import { listLesionsByProfile } from '@/lib/db/queries/lesions';
 import { createReminder, deactivateReminder, listActiveRemindersByProfile, updateReminder } from '@/lib/db/queries/reminders';
 import { listLatestExaminationsByProfile } from '@/lib/db/queries/examinations';
+import { applyReminderSideEffects } from '@/lib/reminder-side-effects';
 
 const mockPush = jest.fn();
 
@@ -36,6 +37,10 @@ jest.mock('@/lib/db/queries/examinations', () => ({
   listLatestExaminationsByProfile: jest.fn(),
 }));
 
+jest.mock('@/lib/reminder-side-effects', () => ({
+  applyReminderSideEffects: jest.fn(),
+}));
+
 jest.mock('@/providers/active-profile-provider', () => ({
   useActiveProfile: () => ({
     activeProfileId: 'profile_1',
@@ -50,6 +55,7 @@ const listLatestExaminationsByProfileMock = jest.mocked(listLatestExaminationsBy
 const createReminderMock = jest.mocked(createReminder);
 const updateReminderMock = jest.mocked(updateReminder);
 const deactivateReminderMock = jest.mocked(deactivateReminder);
+const applyReminderSideEffectsMock = jest.mocked(applyReminderSideEffects);
 
 function renderWithQueryClient(node: React.ReactElement) {
   const queryClient = new QueryClient({
@@ -74,6 +80,11 @@ describe('RemindersPage UI parity', () => {
   });
 
   beforeEach(() => {
+    applyReminderSideEffectsMock.mockResolvedValue({
+      notification: { supported: false, permission: 'unsupported' },
+      sync: { ok: true, sent: 1 },
+    });
+
     listProfilesMock.mockResolvedValue([
       {
         id: 'profile_1',
@@ -164,6 +175,60 @@ describe('RemindersPage UI parity', () => {
     expect(updateReminderMock).not.toHaveBeenCalled();
     expect(createReminderMock).not.toHaveBeenCalled();
     expect(deactivateReminderMock).not.toHaveBeenCalled();
+  });
+
+  it('retains success feedback after saving an updated reminder date', async () => {
+    updateReminderMock.mockResolvedValue(undefined as any);
+
+    renderWithQueryClient(<RemindersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('修改日期 ›')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('修改日期 ›'));
+    fireEvent.changeText(screen.getByPlaceholderText('YYYY-MM-DD'), '2026-05-01');
+    fireEvent.press(screen.getByText('保存'));
+
+    await waitFor(() => {
+      expect(updateReminderMock).toHaveBeenCalledWith('reminder_1', {
+        next_exam_date: '2026-05-01',
+        source: 'manual',
+        is_active: 1,
+      });
+      expect(applyReminderSideEffectsMock).toHaveBeenCalled();
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText('YYYY-MM-DD')).toBeNull();
+    });
+
+    expect(screen.getByText('已同步提醒（通知权限：unsupported）')).toBeTruthy();
+  });
+
+  it('retains success feedback after deactivating a reminder via empty save', async () => {
+    deactivateReminderMock.mockResolvedValue(undefined as any);
+
+    renderWithQueryClient(<RemindersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('修改日期 ›')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('修改日期 ›'));
+    fireEvent.changeText(screen.getByPlaceholderText('YYYY-MM-DD'), '   ');
+    fireEvent.press(screen.getByText('保存'));
+
+    await waitFor(() => {
+      expect(deactivateReminderMock).toHaveBeenCalledWith('reminder_1');
+      expect(applyReminderSideEffectsMock).toHaveBeenCalled();
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText('YYYY-MM-DD')).toBeNull();
+    });
+
+    expect(screen.getByText('已同步提醒（通知权限：unsupported）')).toBeTruthy();
   });
 });
 

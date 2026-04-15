@@ -221,7 +221,6 @@ export default function RemindersPage() {
 
   const cancelEdit = useCallback(() => {
     setFollowUpError('');
-    setSideEffectText('');
     setEditingLesionId(null);
     setFollowUpDraft('');
   }, []);
