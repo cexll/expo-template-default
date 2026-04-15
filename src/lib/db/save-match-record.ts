@@ -122,9 +122,8 @@ export async function saveMatchRecordAtomic(
 
     const persisted = args.reportImages.length > 0 ? await persist(args.reportImages, examinationId) : [];
 
-    const db = deps?.db ?? (await getDatabase());
-
     try {
+      const db = deps?.db ?? (await getDatabase());
       return await withTransaction(db, async () => {
         await db.runAsync(
           `
@@ -250,7 +249,7 @@ export async function saveMatchRecordAtomic(
         return { lesionId, examinationId };
       });
     } catch (err) {
-      // The DB transaction failed after we copied native files; clean up so we don't orphan them.
+      // If we already copied native files but fail to acquire the DB or the transaction fails, clean up so we don't orphan them.
       await cleanupPersistedReportImages(persisted);
       throw err;
     }
@@ -268,9 +267,9 @@ export async function saveMatchRecordAtomic(
   }
 
   const persisted = args.reportImages.length > 0 ? await persist(args.reportImages, examinationId) : [];
-  const db = deps?.db ?? (await getDatabase());
 
   try {
+    const db = deps?.db ?? (await getDatabase());
     return await withTransaction(db, async () => {
       const examDate = formatExamDate(args.recognized.exam_date);
 

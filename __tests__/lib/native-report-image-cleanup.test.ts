@@ -4,6 +4,10 @@ import type { Lesion, Examination, Reminder, ReportImage } from '@/lib/db/types'
 
 const mockFiles = new Set<string>();
 
+jest.mock('@/lib/db', () => ({
+  getDatabase: jest.fn(),
+}));
+
 jest.mock('expo-file-system/legacy', () => {
   return {
     documentDirectory: 'file:///doc/',
@@ -260,5 +264,53 @@ describe('native report-image persistence cleanup', () => {
 
     expect(mockFiles.size).toBe(0);
     copyAsync.mockImplementation(defaultCopy);
+  });
+
+  it('cleans up native-copied report images when DB open fails after native persistence', async () => {
+    // Arrange: native report-image persistence succeeds, but DB acquisition fails.
+    const { getDatabase } = jest.requireMock('@/lib/db') as { getDatabase: jest.Mock };
+    getDatabase.mockRejectedValueOnce(new Error('db open failed'));
+
+    const { saveMatchRecordAtomic } = require('@/lib/db/save-match-record') as typeof import('@/lib/db/save-match-record');
+
+    await expect(
+      saveMatchRecordAtomic({
+        activeProfileId: 'profile-1',
+        createNew: true,
+        diseaseType: 'thyroid',
+        recognized: { location: '左叶', exam_date: '2024-03-15' },
+        rawRecognizedJson: '{}',
+        reportImages: [{ uri: 'file:///tmp/source.png', mimeType: 'image/png' }],
+      })
+    ).rejects.toThrow(/db open failed/i);
+
+    expect(mockFiles.size).toBe(0);
+    // @ts-expect-error jest mock type
+    const { deleteAsync } = jest.requireMock('expo-file-system/legacy') as { deleteAsync: jest.Mock };
+    expect(deleteAsync).toHaveBeenCalled();
+  });
+
+  it('cleans up native-copied report images when DB open fails for existing-lesion saves too', async () => {
+    const { getDatabase } = jest.requireMock('@/lib/db') as { getDatabase: jest.Mock };
+    getDatabase.mockRejectedValueOnce(new Error('db open failed'));
+
+    const { saveMatchRecordAtomic } = require('@/lib/db/save-match-record') as typeof import('@/lib/db/save-match-record');
+
+    await expect(
+      saveMatchRecordAtomic({
+        activeProfileId: 'profile-1',
+        createNew: false,
+        diseaseType: 'thyroid',
+        selectedLesionId: 'lesion-1',
+        recognized: { location: '左叶', exam_date: '2024-03-15' },
+        rawRecognizedJson: '{}',
+        reportImages: [{ uri: 'file:///tmp/source.png', mimeType: 'image/png' }],
+      })
+    ).rejects.toThrow(/db open failed/i);
+
+    expect(mockFiles.size).toBe(0);
+    // @ts-expect-error jest mock type
+    const { deleteAsync } = jest.requireMock('expo-file-system/legacy') as { deleteAsync: jest.Mock };
+    expect(deleteAsync).toHaveBeenCalled();
   });
 });
