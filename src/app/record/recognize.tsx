@@ -12,6 +12,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Tag } from '@/components/ui/Tag';
 import { PaywallSheet } from '@/components/PaywallSheet';
 import { canUseFeature, useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
+import { useLesion } from '@/hooks/useLesions';
 import { ApiError, api } from '@/lib/api';
 import { parseReportImageAssetsParam, stringifyReportImageAssetsParam } from '@/lib/report-images';
 
@@ -184,12 +185,16 @@ function normalizeOptionValue(value: string, options: string[]): string {
 
 export default function RecognizePage() {
   const params = useLocalSearchParams<{ images?: string; diseaseType?: string; lesionId?: string }>();
-  const diseaseType = useMemo(() => parseDiseaseType(params.diseaseType), [params.diseaseType]);
+  const diseaseTypeFromParams = useMemo(() => parseDiseaseType(params.diseaseType), [params.diseaseType]);
   const imagesParam = Array.isArray(params.images) ? params.images[0] : params.images;
   const imageAssets = useMemo(() => parseReportImageAssetsParam(imagesParam), [imagesParam]);
   const imageUris = useMemo(() => imageAssets.map((img) => img.uri), [imageAssets]);
   const lesionIdParam = Array.isArray(params.lesionId) ? params.lesionId[0] : params.lesionId;
   const lesionId = typeof lesionIdParam === 'string' && lesionIdParam ? lesionIdParam : null;
+  const selectionLocked = Boolean(lesionId);
+  const { data: lockedLesion } = useLesion(lesionId ?? '');
+  const lockedDiseaseType = lockedLesion ? parseDiseaseType(lockedLesion.disease_type) : null;
+  const diseaseType: DiseaseType = (selectionLocked ? lockedDiseaseType : null) ?? diseaseTypeFromParams;
 
   const [loading, setLoading] = useState(true);
   const [fields, setFields] = useState<Field[]>(() => buildInitialFields('thyroid'));
@@ -198,7 +203,7 @@ export default function RecognizePage() {
   const [quotaPaywallForced, setQuotaPaywallForced] = useState(false);
 
   const requestIdRef = useRef(0);
-  const autoRunRef = useRef(false);
+  const autoRunKeyRef = useRef<string | null>(null);
 
   const { data: subscriptionStatus, isLoading: subscriptionLoading } = useSubscriptionStatus();
   const quotaBlockedFromStatus = Boolean(subscriptionStatus && !canUseFeature(subscriptionStatus, 'ai_recognize'));
@@ -289,11 +294,12 @@ export default function RecognizePage() {
   }, [diseaseType, imagesParam, quotaBlocked]);
 
   useEffect(() => {
-    if (autoRunRef.current) return;
     if (subscriptionLoading) return;
-    autoRunRef.current = true;
+    const key = `${diseaseType}|${imagesParam ?? ''}|${selectionLocked ? lesionId ?? '' : ''}`;
+    if (autoRunKeyRef.current === key) return;
+    autoRunKeyRef.current = key;
     void runRecognize();
-  }, [runRecognize, subscriptionLoading]);
+  }, [diseaseType, imagesParam, lesionId, runRecognize, selectionLocked, subscriptionLoading]);
 
   const confirmedCount = fields.filter(isConfirmedField).length;
   const totalCount = fields.length;

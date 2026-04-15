@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
+import { useLesion } from '@/hooks/useLesions';
 import { parseReportImageAssetsParam, stringifyReportImageAssetsParam, type ReportImageAsset } from '@/lib/report-images';
 
 type DiseaseType = 'thyroid' | 'breast' | 'lung';
@@ -34,13 +35,26 @@ export default function UploadPage() {
   const [diseaseType, setDiseaseType] = useState<DiseaseType | null>(() => parseDiseaseTypeParam(params.diseaseType));
   const lesionIdParam = Array.isArray(params.lesionId) ? params.lesionId[0] : params.lesionId;
   const lesionId = typeof lesionIdParam === 'string' && lesionIdParam ? lesionIdParam : null;
+  const selectionLocked = Boolean(lesionId);
+  const { data: lockedLesion } = useLesion(lesionId ?? '');
+  const lockedDiseaseType = lockedLesion ? (parseDiseaseTypeParam(lockedLesion.disease_type) as DiseaseType | null) : null;
+  const effectiveDiseaseType: DiseaseType | null = selectionLocked
+    ? lockedDiseaseType ?? parseDiseaseTypeParam(params.diseaseType) ?? diseaseType
+    : diseaseType;
 
   useEffect(() => {
+    if (selectionLocked) return;
     if (!diseaseType) {
       const parsed = parseDiseaseTypeParam(params.diseaseType);
       if (parsed) setDiseaseType(parsed);
     }
-  }, [diseaseType, params.diseaseType]);
+  }, [diseaseType, params.diseaseType, selectionLocked]);
+
+  useEffect(() => {
+    if (!selectionLocked) return;
+    if (!lockedDiseaseType) return;
+    if (diseaseType !== lockedDiseaseType) setDiseaseType(lockedDiseaseType);
+  }, [diseaseType, lockedDiseaseType, selectionLocked]);
 
   useEffect(() => {
     if (images.length === 0) {
@@ -123,7 +137,7 @@ export default function UploadPage() {
     });
   }, []);
 
-  const canProceed = images.length > 0 && diseaseType !== null;
+  const canProceed = images.length > 0 && effectiveDiseaseType !== null;
 
   return (
     <SafeAreaView className="flex-1 bg-page-bg">
@@ -193,13 +207,19 @@ export default function UploadPage() {
         <Text className="text-xs text-neutral-text mb-6">最多5张，支持同一次检查的多页报告</Text>
 
         <Text className="text-sm font-semibold text-primary mb-3">检查类型</Text>
+        {selectionLocked ? (
+          <Text className="text-xs text-neutral-text mb-2">已从病灶进入，本次检查类型已锁定</Text>
+        ) : null}
         <View className="flex-row gap-3 mb-8">
           {(Object.keys(DISEASE_LABELS) as DiseaseType[]).map((type) => (
             <Tag
               key={type}
               text={DISEASE_LABELS[type]}
-              selected={diseaseType === type}
-              onPress={() => setDiseaseType(type)}
+              selected={effectiveDiseaseType === type}
+              onPress={() => {
+                if (selectionLocked) return;
+                setDiseaseType(type);
+              }}
             />
           ))}
         </View>
@@ -213,7 +233,7 @@ export default function UploadPage() {
               pathname: '/record/recognize',
               params: {
                 images: stringifyReportImageAssetsParam(images),
-                diseaseType,
+                diseaseType: effectiveDiseaseType,
                 ...(lesionId ? { lesionId } : {}),
               },
             });

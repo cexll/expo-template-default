@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import MatchPage from '@/app/record/match';
 
 const mockSaveMatchRecordAtomic = jest.fn();
+const mockUseLesion = jest.fn();
 
 jest.mock('expo-router', () => ({
   router: {
@@ -41,9 +42,14 @@ const mockUseLesions = jest.fn();
 
 jest.mock('@/hooks/useLesions', () => ({
   useLesions: () => mockUseLesions(),
+  useLesion: (id: string) => mockUseLesion(id),
 }));
 
 describe('MatchPage', () => {
+  beforeEach(() => {
+    mockUseLesion.mockReturnValue({ data: null });
+  });
+
   afterEach(() => {
     jest.clearAllMocks();
   });
@@ -235,6 +241,78 @@ describe('MatchPage', () => {
 
     await waitFor(() => {
       expect(router.replace).toHaveBeenCalledWith('/lesion/lesion-new');
+    });
+  });
+
+  it('locks selection to lesionId even if disease filtering or candidate list would exclude it', async () => {
+    const { useLocalSearchParams, router } = require('expo-router');
+
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      lesionId: 'lesion-locked',
+      diseaseType: 'lung', // attempt to drift disease type
+      images: JSON.stringify(['file:///a.png']),
+      recognizedData: JSON.stringify({
+        location: '左叶中下段',
+        size_x: '8.0',
+        tirads: '3',
+        exam_date: '2024-03-15',
+      }),
+    });
+
+    // Candidate lesions do NOT include the locked lesion (e.g., due to active profile or disease filter drift).
+    mockUseLesions.mockReturnValue({
+      data: [
+        {
+          id: 'lesion-other',
+          profile_id: 'profile-1',
+          disease_type: 'lung',
+          label: '肺右上叶结节',
+          location: '右上叶前段',
+          is_archived: 0,
+          created_at: '2026-04-13T00:00:00.000Z',
+          updated_at: '2026-04-13T00:00:00.000Z',
+        },
+      ],
+    });
+
+    mockUseLesion.mockReturnValue({
+      data: {
+        id: 'lesion-locked',
+        profile_id: 'profile-2',
+        disease_type: 'thyroid',
+        label: '甲状腺左叶结节',
+        location: '左叶中下段',
+        is_archived: 0,
+        created_at: '2026-04-13T00:00:00.000Z',
+        updated_at: '2026-04-13T00:00:00.000Z',
+      },
+    });
+
+    mockUseQueries.mockReturnValue([{ data: [{ size_x: 8.3 }] }]);
+
+    mockSaveMatchRecordAtomic.mockResolvedValue({ lesionId: 'lesion-locked', examinationId: 'exam-1' });
+
+    render(<MatchPage />);
+
+    expect(screen.getByText('新增记录')).toBeTruthy();
+    expect(screen.getByText('已选择: 甲状腺左叶结节')).toBeTruthy();
+    expect(screen.queryByText('新建病灶')).toBeNull();
+
+    fireEvent.press(screen.getByText('确认入库'));
+
+    await waitFor(() => {
+      expect(mockSaveMatchRecordAtomic).toHaveBeenCalledTimes(1);
+    });
+
+    const call = mockSaveMatchRecordAtomic.mock.calls[0]?.[0];
+    expect(call).toMatchObject({
+      createNew: false,
+      diseaseType: 'thyroid',
+      selectedLesionId: 'lesion-locked',
+    });
+
+    await waitFor(() => {
+      expect(router.replace).toHaveBeenCalledWith('/lesion/lesion-locked');
     });
   });
 });

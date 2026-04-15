@@ -12,7 +12,7 @@ import { listExaminationsByLesion } from '@/lib/db/queries/examinations';
 import { parseReportImageAssetsParam } from '@/lib/report-images';
 import { saveMatchRecordAtomic } from '@/lib/db/save-match-record';
 import { applyReminderSideEffects } from '@/lib/reminder-side-effects';
-import { useLesions } from '@/hooks/useLesions';
+import { useLesion, useLesions } from '@/hooks/useLesions';
 import { useActiveProfile } from '@/providers/active-profile-provider';
 
 type DiseaseType = Lesion['disease_type'];
@@ -50,27 +50,38 @@ export default function MatchPage() {
   const lesionIdParam = Array.isArray(params.lesionId) ? params.lesionId[0] : params.lesionId;
   const lockedLesionId = typeof lesionIdParam === 'string' && lesionIdParam ? lesionIdParam : null;
 
-  const diseaseType = (params.diseaseType === 'thyroid' ||
+  const selectionLocked = Boolean(lockedLesionId);
+  const { data: lockedLesion } = useLesion(lockedLesionId ?? '');
+  const diseaseTypeParam = (params.diseaseType === 'thyroid' ||
   params.diseaseType === 'breast' ||
   params.diseaseType === 'lung'
     ? params.diseaseType
     : null) as DiseaseType | null;
+  const diseaseType: DiseaseType | null = selectionLocked
+    ? ((lockedLesion?.disease_type as DiseaseType | undefined) ?? diseaseTypeParam)
+    : diseaseTypeParam;
 
   const { data: lesions = [] } = useLesions(activeProfileId);
+  const lockedLesionFromList = useMemo(() => {
+    if (!selectionLocked || !lockedLesionId) return null;
+    return lesions.find((lesion) => lesion.id === lockedLesionId) ?? null;
+  }, [lesions, lockedLesionId, selectionLocked]);
+  const lockedLesionForDisplay = lockedLesion ?? lockedLesionFromList;
+
   const candidateLesions = useMemo(() => {
+    if (selectionLocked) {
+      return lockedLesionForDisplay ? [lockedLesionForDisplay] : [];
+    }
     if (!diseaseType) return lesions.filter((lesion) => lesion.is_archived === 0);
     return lesions.filter((lesion) => lesion.is_archived === 0 && lesion.disease_type === diseaseType);
-  }, [diseaseType, lesions]);
-
-  const lockEligible = Boolean(lockedLesionId && candidateLesions.some((lesion) => lesion.id === lockedLesionId));
-  const selectionLocked = lockEligible;
+  }, [diseaseType, lesions, lockedLesionForDisplay, selectionLocked]);
 
   useEffect(() => {
+    if (!selectionLocked) return;
     if (!lockedLesionId) return;
-    if (!candidateLesions.some((lesion) => lesion.id === lockedLesionId)) return;
     setSelectedId(lockedLesionId);
     setCreateNew(false);
-  }, [candidateLesions, lockedLesionId]);
+  }, [lockedLesionId, selectionLocked]);
 
   const examinationResults = useQueries({
     queries: candidateLesions.map((lesion) => ({
@@ -109,21 +120,13 @@ export default function MatchPage() {
     return scoreLesionMatch(location, sizeX, lesionMatchInputs);
   }, [lesionMatchInputs, location, sizeX]);
 
-  const visibleMatches = useMemo(() => {
-    if (!selectionLocked || !lockedLesionId) return matches;
-    return matches.filter((match) => match.lesionId === lockedLesionId);
-  }, [lockedLesionId, matches, selectionLocked]);
-
   // Auto-select if confidence >= 80%
   const topMatch = matches[0] ?? null;
   const autoMatch = topMatch && topMatch.confidence >= 80 ? topMatch : null;
-  const effectiveSelected = selectionLocked
-    ? lockedLesionId
-    : selectedId || (!createNew && autoMatch ? autoMatch.lesionId : null);
+  const effectiveSelected = selectionLocked ? lockedLesionId : selectedId || (!createNew && autoMatch ? autoMatch.lesionId : null);
 
-  const selectedLabel = createNew
-    ? '新建病灶'
-    : candidateLesions.find((l) => l.id === effectiveSelected)?.label || '';
+  const lockedLabel = lockedLesionForDisplay?.label ?? (lockedLesionId || '');
+  const selectedLabel = createNew ? '新建病灶' : selectionLocked ? lockedLabel : candidateLesions.find((l) => l.id === effectiveSelected)?.label || '';
 
   const save = useCallback(async () => {
     if (!activeProfileId) {
@@ -204,7 +207,7 @@ export default function MatchPage() {
           <Card className="mb-3">
             <Text className="text-sm font-semibold text-primary">新增记录</Text>
             <Text className="mt-1 text-xs text-neutral-text">
-              本次检查将直接添加到当前病灶：{candidateLesions.find((l) => l.id === lockedLesionId)?.label || lockedLesionId}
+              本次检查将直接添加到当前病灶：{lockedLabel || lockedLesionId}
             </Text>
           </Card>
         ) : null}
@@ -232,10 +235,10 @@ export default function MatchPage() {
           </Card>
         ) : null}
 
-        {visibleMatches.map((match) => (
+        {matches.map((match) => (
           <Pressable
             key={match.lesionId}
-            disabled={selectionLocked && match.lesionId !== lockedLesionId}
+            disabled={selectionLocked}
             onPress={() => {
               if (selectionLocked) return;
               setSelectedId(match.lesionId);

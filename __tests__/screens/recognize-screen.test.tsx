@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import RecognizePage from '@/app/record/recognize';
 
 const mockUseSubscriptionStatus = jest.fn();
+const mockUseLesion = jest.fn();
 
 jest.mock('expo-router', () => ({
   router: {
@@ -48,7 +49,17 @@ jest.mock('@/hooks/useSubscriptionStatus', () => ({
   },
 }));
 
+jest.mock('@/hooks/useLesions', () => ({
+  useLesion: (id: string) => mockUseLesion(id),
+}));
+
 describe('RecognizePage', () => {
+  beforeEach(() => {
+    mockUseLesion.mockReturnValue({ data: null });
+    const { useLocalSearchParams } = require('expo-router');
+    (useLocalSearchParams as jest.Mock).mockReturnValue({});
+  });
+
   afterEach(() => {
     jest.clearAllMocks();
   });
@@ -113,6 +124,66 @@ describe('RecognizePage', () => {
       location: '左叶中下段',
       size_x: '8.3',
       tirads: '3',
+    });
+  });
+
+  it('locks diseaseType to the originating lesion context when lesionId is provided', async () => {
+    const { useLocalSearchParams, router } = require('expo-router');
+
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      lesionId: 'lesion-1',
+      images: JSON.stringify(['file:///a.png']),
+      diseaseType: 'lung', // attempt to drift via route param
+    });
+
+    mockUseLesion.mockReturnValue({
+      data: {
+        id: 'lesion-1',
+        profile_id: 'profile-1',
+        disease_type: 'thyroid',
+        label: '甲状腺左叶结节',
+        location: '左叶中下段',
+        is_archived: 0,
+        created_at: '2026-04-13T00:00:00.000Z',
+        updated_at: '2026-04-13T00:00:00.000Z',
+      },
+    });
+
+    mockUseSubscriptionStatus.mockReturnValue({ data: { isActive: true }, isLoading: false });
+    mockReadAsStringAsync.mockResolvedValueOnce('BASE64_A');
+    mockApiPost.mockResolvedValue({
+      disease_type: 'thyroid',
+      fields: {
+        location: { value: '左叶中下段', confidence: 0.9 },
+        size_x: { value: '8.3', confidence: 0.92 },
+        tirads: { value: '3', confidence: 0.85 },
+      },
+    });
+
+    render(<RecognizePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('AI识别核对')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('下一步 — 匹配病灶'));
+
+    await waitFor(() => {
+      expect(router.push).toHaveBeenCalledTimes(1);
+    });
+
+    expect(mockApiPost).toHaveBeenCalledWith('/api/v1/ai/recognize', {
+      disease_type: 'thyroid',
+      images: ['BASE64_A'],
+    });
+
+    const arg = (router.push as jest.Mock).mock.calls[0]?.[0];
+    expect(arg).toMatchObject({
+      pathname: '/record/match',
+      params: {
+        diseaseType: 'thyroid',
+        lesionId: 'lesion-1',
+      },
     });
   });
 
