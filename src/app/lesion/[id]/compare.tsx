@@ -12,6 +12,7 @@ import { useExaminations } from '@/hooks/useExaminations';
 import { useLesion } from '@/hooks/useLesions';
 import { useCreateReminder, useDeactivateReminder, useRemindersByLesion, useUpdateReminder } from '@/hooks/useReminders';
 import type { Examination, Lesion } from '@/lib/db/types';
+import { parseStrictIsoCalendarDate } from '@/lib/iso-calendar-date';
 import { applyReminderSideEffects } from '@/lib/reminder-side-effects';
 
 function formatSignedDiff(value: string) {
@@ -31,14 +32,6 @@ function calcChange(current: number, reference: number) {
 
 function makeId(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function parseIsoDate(value: string) {
-  const trimmed = value.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
-  const date = new Date(trimmed);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString().slice(0, 10);
 }
 
 function formatMm(value: number | null | undefined) {
@@ -253,13 +246,13 @@ export default function ComparePage() {
   }, [customRange, customDraftEnd, customDraftStart, examinations, windowMode]);
 
   const applyCustomRange = useCallback(() => {
-    const start = parseIsoDate(customDraftStart);
-    const end = parseIsoDate(customDraftEnd);
+    const start = parseStrictIsoCalendarDate(customDraftStart);
+    const end = parseStrictIsoCalendarDate(customDraftEnd);
     if (!start || !end) {
       setCustomRangeError('请输入正确的日期（YYYY-MM-DD）');
       return;
     }
-    if (new Date(start) > new Date(end)) {
+    if (start > end) {
       setCustomRangeError('起始日期不能晚于结束日期');
       return;
     }
@@ -304,7 +297,7 @@ export default function ComparePage() {
       return;
     }
 
-    const iso = parseIsoDate(trimmed);
+    const iso = parseStrictIsoCalendarDate(trimmed);
     if (!iso) {
       setFollowUpError('请输入正确的日期（YYYY-MM-DD）');
       return;

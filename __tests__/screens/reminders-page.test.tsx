@@ -1,11 +1,11 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import RemindersPage from '@/app/(main)/reminders';
 import { listProfiles } from '@/lib/db/queries/profiles';
 import { listLesionsByProfile } from '@/lib/db/queries/lesions';
-import { listActiveRemindersByProfile } from '@/lib/db/queries/reminders';
+import { createReminder, deactivateReminder, listActiveRemindersByProfile, updateReminder } from '@/lib/db/queries/reminders';
 import { listLatestExaminationsByProfile } from '@/lib/db/queries/examinations';
 
 const mockPush = jest.fn();
@@ -27,6 +27,9 @@ jest.mock('@/lib/db/queries/lesions', () => ({
 
 jest.mock('@/lib/db/queries/reminders', () => ({
   listActiveRemindersByProfile: jest.fn(),
+  createReminder: jest.fn(),
+  updateReminder: jest.fn(),
+  deactivateReminder: jest.fn(),
 }));
 
 jest.mock('@/lib/db/queries/examinations', () => ({
@@ -44,6 +47,9 @@ const listProfilesMock = jest.mocked(listProfiles);
 const listLesionsByProfileMock = jest.mocked(listLesionsByProfile);
 const listActiveRemindersByProfileMock = jest.mocked(listActiveRemindersByProfile);
 const listLatestExaminationsByProfileMock = jest.mocked(listLatestExaminationsByProfile);
+const createReminderMock = jest.mocked(createReminder);
+const updateReminderMock = jest.mocked(updateReminder);
+const deactivateReminderMock = jest.mocked(deactivateReminder);
 
 function renderWithQueryClient(node: React.ReactElement) {
   const queryClient = new QueryClient({
@@ -59,7 +65,7 @@ function renderWithQueryClient(node: React.ReactElement) {
 }
 
 function isoDaysFromNow(days: number) {
-  return new Date(Date.now() + days * 86400000).toISOString();
+  return new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
 }
 
 describe('RemindersPage UI parity', () => {
@@ -140,6 +146,24 @@ describe('RemindersPage UI parity', () => {
     // Active reminder cards expose edit/deactivate affordances.
     expect(screen.getByText('修改日期 ›')).toBeTruthy();
     expect(screen.getByText('停用')).toBeTruthy();
+  });
+
+  it('rejects impossible calendar dates on manual edit', async () => {
+    renderWithQueryClient(<RemindersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('修改日期 ›')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('修改日期 ›'));
+
+    fireEvent.changeText(screen.getByPlaceholderText('YYYY-MM-DD'), '2026-02-31');
+    fireEvent.press(screen.getByText('保存'));
+
+    expect(screen.getByText('请输入正确的日期（YYYY-MM-DD）')).toBeTruthy();
+    expect(updateReminderMock).not.toHaveBeenCalled();
+    expect(createReminderMock).not.toHaveBeenCalled();
+    expect(deactivateReminderMock).not.toHaveBeenCalled();
   });
 });
 

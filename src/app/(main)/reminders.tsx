@@ -11,6 +11,7 @@ import { useLatestExaminationsByProfile } from '@/hooks/useExaminations';
 import { useLesions } from '@/hooks/useLesions';
 import { useProfiles } from '@/hooks/useProfiles';
 import { useActiveReminders, useCreateReminder, useDeactivateReminder, useUpdateReminder } from '@/hooks/useReminders';
+import { parseStrictIsoCalendarDate } from '@/lib/iso-calendar-date';
 import { deriveAutoReminder } from '@/lib/reminder-calculator';
 import { applyReminderSideEffects } from '@/lib/reminder-side-effects';
 import { useActiveProfile } from '@/providers/active-profile-provider';
@@ -119,14 +120,6 @@ function buildLayerStates(daysUntil: number | undefined) {
 
 function makeId(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function parseIsoDate(value: string) {
-  const trimmed = value.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
-  const date = new Date(trimmed);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString().slice(0, 10);
 }
 
 export default function RemindersPage() {
@@ -255,7 +248,7 @@ export default function RemindersPage() {
         return;
       }
 
-      const iso = parseIsoDate(trimmed);
+      const iso = parseStrictIsoCalendarDate(trimmed);
       if (!iso) {
         setFollowUpError('请输入正确的日期（YYYY-MM-DD）');
         return;

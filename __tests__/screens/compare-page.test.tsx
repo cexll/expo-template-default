@@ -304,6 +304,11 @@ describe('ComparePage', () => {
     expect(screen.getByText('请输入正确的日期（YYYY-MM-DD）')).toBeTruthy();
     expect(mockUpdateReminderMutateAsync).not.toHaveBeenCalled();
 
+    fireEvent.changeText(screen.getByPlaceholderText('YYYY-MM-DD'), '2026-02-31');
+    fireEvent.press(screen.getByText('保存'));
+    expect(screen.getByText('请输入正确的日期（YYYY-MM-DD）')).toBeTruthy();
+    expect(mockUpdateReminderMutateAsync).not.toHaveBeenCalled();
+
     fireEvent.changeText(screen.getByPlaceholderText('YYYY-MM-DD'), '2025-01-10');
     await act(async () => {
       fireEvent.press(screen.getByText('保存'));
