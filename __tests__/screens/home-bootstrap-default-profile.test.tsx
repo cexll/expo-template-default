@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import HomePage from '@/app/(main)/index';
@@ -10,11 +10,14 @@ import { listLesionsByProfile } from '@/lib/db/queries/lesions';
 import { listActiveRemindersByProfile } from '@/lib/db/queries/reminders';
 import { listExaminationsByLesion } from '@/lib/db/queries/examinations';
 
+let mockPathname = '/';
+
 jest.mock('expo-router', () => ({
   router: {
     push: jest.fn(),
     replace: jest.fn(),
   },
+  usePathname: () => mockPathname,
 }));
 
 jest.mock('@/providers/auth-provider', () => ({
@@ -66,7 +69,7 @@ function renderHome() {
     },
   });
 
-  const node = (
+  const buildNode = () => (
     <QueryClientProvider client={queryClient}>
       <ActiveProfileProvider>
         <HomePage />
@@ -74,7 +77,7 @@ function renderHome() {
     </QueryClientProvider>
   );
 
-  return { queryClient, node, ...render(node) };
+  return { queryClient, buildNode, ...render(buildNode()) };
 }
 
 function isoDaysFromNow(days: number) {
@@ -84,6 +87,7 @@ function isoDaysFromNow(days: number) {
 describe('Home bootstrap default-profile semantics', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockPathname = '/';
     try {
       globalThis.localStorage?.clear();
     } catch {
@@ -192,7 +196,7 @@ describe('Home bootstrap default-profile semantics', () => {
     });
     expect(screen.queryByText('左叶结节')).toBeNull();
 
-    tree.rerender(tree.node);
+    tree.rerender(tree.buildNode());
 
     await waitFor(() => {
       expect(screen.getByText('右乳结节')).toBeTruthy();
@@ -202,6 +206,38 @@ describe('Home bootstrap default-profile semantics', () => {
     // A remount (simulated reload) should again default home back to the first stored profile.
     tree.unmount();
     renderHome();
+
+    await waitFor(() => {
+      expect(screen.getByText('左叶结节')).toBeTruthy();
+    });
+    expect(screen.queryByText('右乳结节')).toBeNull();
+  });
+
+  it('re-applies the first-profile default when returning to Home in the same session', async () => {
+    globalThis.localStorage?.setItem('active_profile_id', 'profile_2');
+
+    const tree = renderHome();
+
+    await waitFor(() => {
+      expect(screen.getByText('左叶结节')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByTestId('profile-switcher-chip-profile_2'));
+
+    await waitFor(() => {
+      expect(screen.getByText('右乳结节')).toBeTruthy();
+    });
+
+    // Simulate navigating away and then returning to home without a full reload.
+    mockPathname = '/settings';
+    await act(async () => {
+      tree.rerender(tree.buildNode());
+    });
+
+    mockPathname = '/';
+    await act(async () => {
+      tree.rerender(tree.buildNode());
+    });
 
     await waitFor(() => {
       expect(screen.getByText('左叶结节')).toBeTruthy();

@@ -14,6 +14,7 @@ jest.mock('expo-router', () => ({
     push: jest.fn(),
     replace: jest.fn(),
   },
+  usePathname: () => '/',
 }));
 
 jest.mock('@/lib/api', () => ({

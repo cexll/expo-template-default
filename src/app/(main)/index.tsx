@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, Text, View, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import { useQueries } from '@tanstack/react-query';
 
 import { LesionCard } from '@/components/LesionCard';
@@ -73,13 +73,29 @@ function getExamSizeScalar(exam: { size_x: number | null; size_y: number | null;
 export default function HomePage() {
   const [paywallVisible, setPaywallVisible] = useState(false);
 
+  const pathname = usePathname();
+  const isHomePath = pathname === '/' || pathname === '';
+  const wasHomeRef = useRef(false);
+  const bootstrappedForEntryRef = useRef(false);
+
   const { data: profiles = [] } = useProfiles();
   const { data: subscriptionStatus } = useSubscriptionStatus();
   const { activeProfileId, setActiveProfileId, bootstrapHomeDefaultProfile } = useActiveProfile();
 
   useEffect(() => {
+    const enteringHome = isHomePath && !wasHomeRef.current;
+    if (enteringHome) {
+      bootstrappedForEntryRef.current = false;
+    }
+    wasHomeRef.current = isHomePath;
+
+    if (!isHomePath) return;
+    if (profiles.length === 0) return;
+    if (bootstrappedForEntryRef.current) return;
+
     bootstrapHomeDefaultProfile(profiles);
-  }, [bootstrapHomeDefaultProfile, profiles]);
+    bootstrappedForEntryRef.current = true;
+  }, [bootstrapHomeDefaultProfile, isHomePath, profiles]);
 
   const { data: lesions = [] } = useLesions(activeProfileId);
   const { data: reminders = [] } = useActiveReminders(activeProfileId);

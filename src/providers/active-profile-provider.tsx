@@ -19,8 +19,8 @@ type ActiveProfileContextValue = {
   setActiveProfileId: (profileId: string, options?: { persist?: boolean }) => void;
 
   /**
-   * Apply the Home bootstrap rule once per app runtime: default the Home screen
-   * to the first stored profile when a different (valid) profile id was
+   * Apply the Home bootstrap rule on each Home entry/re-entry: default the Home
+   * screen to the first stored profile when a different (valid) profile id was
    * persisted, without overwriting that persisted id.
    */
   bootstrapHomeDefaultProfile: (profiles: { id: string }[]) => void;
@@ -61,14 +61,11 @@ export function ActiveProfileProvider({ children }: { children: React.ReactNode 
   const [activeProfileId, setActiveProfileIdState] = useState('');
   const [hydrated, setHydrated] = useState(false);
   const [storedActiveProfileId, setStoredActiveProfileId] = useState<string | null>(null);
-  const [initialStoredActiveProfileId, setInitialStoredActiveProfileId] = useState<string | null>(null);
-  const [homeBootstrapped, setHomeBootstrapped] = useState(false);
 
   useEffect(() => {
     if (hydrated) return;
     const stored = loadStoredActiveProfileId();
     setStoredActiveProfileId(stored);
-    setInitialStoredActiveProfileId(stored);
     if (stored) setActiveProfileIdState(stored);
     setHydrated(true);
   }, [hydrated]);
@@ -78,8 +75,6 @@ export function ActiveProfileProvider({ children }: { children: React.ReactNode 
     if (!isAuthenticated) {
       setActiveProfileIdState('');
       setStoredActiveProfileId(null);
-      setInitialStoredActiveProfileId(null);
-      setHomeBootstrapped(false);
       clearStoredActiveProfileId();
     }
   }, [authLoading, isAuthenticated]);
@@ -125,33 +120,28 @@ export function ActiveProfileProvider({ children }: { children: React.ReactNode 
 
   const bootstrapHomeDefaultProfile = useCallback(
     (homeProfiles: { id: string }[]) => {
-      if (homeBootstrapped) return;
       if (homeProfiles.length === 0) return;
       if (!hydrated) return;
 
       const firstId = homeProfiles[0].id;
       if (!firstId) return;
-      if (!initialStoredActiveProfileId) {
-        setHomeBootstrapped(true);
+      if (!storedActiveProfileId) {
         return;
       }
-      if (initialStoredActiveProfileId === firstId) {
-        setHomeBootstrapped(true);
+      if (storedActiveProfileId === firstId) {
         return;
       }
 
       // Only override when the persisted id is valid; otherwise let the provider's
       // normal validation/repair path clear or replace the persisted value.
-      const storedIsValid = homeProfiles.some((profile) => profile.id === initialStoredActiveProfileId);
+      const storedIsValid = homeProfiles.some((profile) => profile.id === storedActiveProfileId);
       if (!storedIsValid) {
-        setHomeBootstrapped(true);
         return;
       }
 
       setActiveProfileId(firstId, { persist: false });
-      setHomeBootstrapped(true);
     },
-    [homeBootstrapped, hydrated, initialStoredActiveProfileId, setActiveProfileId]
+    [hydrated, setActiveProfileId, storedActiveProfileId]
   );
 
   const value = useMemo<ActiveProfileContextValue>(
