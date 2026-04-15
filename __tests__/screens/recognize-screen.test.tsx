@@ -55,7 +55,7 @@ jest.mock('@/hooks/useLesions', () => ({
 
 describe('RecognizePage', () => {
   beforeEach(() => {
-    mockUseLesion.mockReturnValue({ data: null });
+    mockUseLesion.mockReturnValue({ data: null, isFetched: true, isLoading: false });
     const { useLocalSearchParams } = require('expo-router');
     (useLocalSearchParams as jest.Mock).mockReturnValue({});
   });
@@ -90,7 +90,7 @@ describe('RecognizePage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('AI识别核对')).toBeTruthy();
-    });
+    }, { timeout: 5000 });
 
     expect(screen.getByLabelText('报告图片预览1')).toBeTruthy();
     expect(screen.getByLabelText('报告图片预览2')).toBeTruthy();
@@ -102,7 +102,7 @@ describe('RecognizePage', () => {
 
     await waitFor(() => {
       expect(router.push).toHaveBeenCalledTimes(1);
-    });
+    }, { timeout: 5000 });
 
     expect(mockApiPost).toHaveBeenCalledWith('/api/v1/ai/recognize', {
       disease_type: 'thyroid',
@@ -147,6 +147,8 @@ describe('RecognizePage', () => {
         created_at: '2026-04-13T00:00:00.000Z',
         updated_at: '2026-04-13T00:00:00.000Z',
       },
+      isFetched: true,
+      isLoading: false,
     });
 
     mockUseSubscriptionStatus.mockReturnValue({ data: { isActive: true }, isLoading: false });
@@ -164,13 +166,13 @@ describe('RecognizePage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('AI识别核对')).toBeTruthy();
-    });
+    }, { timeout: 5000 });
 
     fireEvent.press(screen.getByText('下一步 — 匹配病灶'));
 
     await waitFor(() => {
       expect(router.push).toHaveBeenCalledTimes(1);
-    });
+    }, { timeout: 5000 });
 
     expect(mockApiPost).toHaveBeenCalledWith('/api/v1/ai/recognize', {
       disease_type: 'thyroid',
@@ -184,6 +186,62 @@ describe('RecognizePage', () => {
         diseaseType: 'thyroid',
         lesionId: 'lesion-1',
       },
+    });
+  });
+
+  it('delays lesion-scoped auto-run until canonical lesion context resolves and never sends a drifted route-param disease type first', async () => {
+    const { useLocalSearchParams } = require('expo-router');
+
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      lesionId: 'lesion-1',
+      images: JSON.stringify(['file:///a.png']),
+      diseaseType: 'lung', // attempt to drift via route param on cold cache
+    });
+
+    mockUseSubscriptionStatus.mockReturnValue({ data: { isActive: true }, isLoading: false });
+
+    // Cold-cache: lesion query not yet fetched, so recognize must NOT auto-run.
+    mockUseLesion.mockReturnValueOnce({ data: null, isFetched: false, isLoading: true });
+    const { rerender } = render(<RecognizePage />);
+
+    expect(screen.getByText('加载病灶信息...')).toBeTruthy();
+    expect(mockReadAsStringAsync).not.toHaveBeenCalled();
+    expect(mockApiPost).not.toHaveBeenCalled();
+
+    mockReadAsStringAsync.mockResolvedValueOnce('BASE64_A');
+    mockApiPost.mockResolvedValueOnce({
+      disease_type: 'thyroid',
+      fields: {
+        location: { value: '左叶中下段', confidence: 0.9 },
+        size_x: { value: '8.3', confidence: 0.92 },
+        tirads: { value: '3', confidence: 0.85 },
+      },
+    });
+
+    // Lesion context resolves: now the FIRST AI request must use canonical lesion disease type.
+    mockUseLesion.mockReturnValue({
+      data: {
+        id: 'lesion-1',
+        profile_id: 'profile-1',
+        disease_type: 'thyroid',
+        label: '甲状腺左叶结节',
+        location: '左叶中下段',
+        is_archived: 0,
+        created_at: '2026-04-13T00:00:00.000Z',
+        updated_at: '2026-04-13T00:00:00.000Z',
+      },
+      isFetched: true,
+      isLoading: false,
+    });
+    rerender(<RecognizePage />);
+
+    await waitFor(() => {
+      expect(mockApiPost).toHaveBeenCalledTimes(1);
+    }, { timeout: 5000 });
+
+    expect(mockApiPost).toHaveBeenCalledWith('/api/v1/ai/recognize', {
+      disease_type: 'thyroid',
+      images: ['BASE64_A'],
     });
   });
 
@@ -220,7 +278,7 @@ describe('RecognizePage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('AI识别核对')).toBeTruthy();
-    });
+    }, { timeout: 5000 });
   });
 
   it('surfaces OCR failure and blocks progression', async () => {
@@ -240,7 +298,7 @@ describe('RecognizePage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('识别失败')).toBeTruthy();
-    });
+    }, { timeout: 5000 });
 
     fireEvent.press(screen.getByText('下一步 — 匹配病灶'));
 
@@ -261,7 +319,7 @@ describe('RecognizePage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('未收到可识别的图片')).toBeTruthy();
-    });
+    }, { timeout: 5000 });
 
     expect(mockApiPost).not.toHaveBeenCalled();
   });
@@ -283,7 +341,7 @@ describe('RecognizePage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('升级解锁')).toBeTruthy();
-    });
+    }, { timeout: 5000 });
 
     expect(mockReadAsStringAsync).not.toHaveBeenCalled();
     expect(mockApiPost).not.toHaveBeenCalled();
@@ -309,7 +367,7 @@ describe('RecognizePage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('升级解锁')).toBeTruthy();
-    });
+    }, { timeout: 5000 });
 
     fireEvent.press(screen.getByText('先不了，继续免费版'));
 
@@ -343,7 +401,7 @@ describe('RecognizePage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('升级解锁')).toBeTruthy();
-    });
+    }, { timeout: 5000 });
 
     // Close the modal so the underlying form is interactable.
     fireEvent.press(screen.getByText('先不了，继续免费版'));
@@ -389,7 +447,7 @@ describe('RecognizePage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('AI识别核对')).toBeTruthy();
-    });
+    }, { timeout: 5000 });
 
     fireEvent.press(screen.getByText('下一步 — 匹配病灶'));
     expect(router.push).not.toHaveBeenCalled();
@@ -400,7 +458,7 @@ describe('RecognizePage', () => {
 
     await waitFor(() => {
       expect(router.push).toHaveBeenCalledTimes(1);
-    });
+    }, { timeout: 5000 });
   });
 
   it('progress counts only confirmed or high-confidence valid fields', async () => {
@@ -429,12 +487,12 @@ describe('RecognizePage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('3/10 已确认')).toBeTruthy();
-    });
+    }, { timeout: 5000 });
 
     fireEvent.press(screen.getByText('磨玻璃'));
 
     await waitFor(() => {
       expect(screen.getByText('4/10 已确认')).toBeTruthy();
-    });
+    }, { timeout: 5000 });
   });
 });

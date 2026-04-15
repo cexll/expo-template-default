@@ -192,9 +192,12 @@ export default function RecognizePage() {
   const lesionIdParam = Array.isArray(params.lesionId) ? params.lesionId[0] : params.lesionId;
   const lesionId = typeof lesionIdParam === 'string' && lesionIdParam ? lesionIdParam : null;
   const selectionLocked = Boolean(lesionId);
-  const { data: lockedLesion } = useLesion(lesionId ?? '');
+  const { data: lockedLesion, isFetched: lockedLesionFetched } = useLesion(lesionId ?? '');
+  const lesionContextPending = selectionLocked && !lockedLesionFetched;
+  const lesionContextMissing = selectionLocked && lockedLesionFetched && !lockedLesion;
   const lockedDiseaseType = lockedLesion ? parseDiseaseType(lockedLesion.disease_type) : null;
-  const diseaseType: DiseaseType = (selectionLocked ? lockedDiseaseType : null) ?? diseaseTypeFromParams;
+  const requestDiseaseType = (selectionLocked ? lockedDiseaseType : null) ?? diseaseTypeFromParams;
+  const diseaseType: DiseaseType = requestDiseaseType;
 
   const [loading, setLoading] = useState(true);
   const [fields, setFields] = useState<Field[]>(() => buildInitialFields('thyroid'));
@@ -208,6 +211,14 @@ export default function RecognizePage() {
   const { data: subscriptionStatus, isLoading: subscriptionLoading } = useSubscriptionStatus();
   const quotaBlockedFromStatus = Boolean(subscriptionStatus && !canUseFeature(subscriptionStatus, 'ai_recognize'));
   const quotaBlocked = quotaBlockedFromStatus || quotaPaywallForced;
+
+  useEffect(() => {
+    if (!selectionLocked) return;
+    if (!lockedLesionFetched) return;
+    if (lockedLesion) return;
+    setError('未找到该病灶');
+    setLoading(false);
+  }, [lockedLesion, lockedLesionFetched, selectionLocked]);
 
   useEffect(() => {
     if (!subscriptionStatus) return;
@@ -226,7 +237,13 @@ export default function RecognizePage() {
     requestIdRef.current = requestId;
 
     setError('');
-    setFields(buildInitialFields(diseaseType));
+    setFields(buildInitialFields(requestDiseaseType));
+
+    if (lesionContextMissing) {
+      setError('未找到该病灶');
+      setLoading(false);
+      return;
+    }
 
     if (quotaBlocked) {
       setError('本月AI识别次数已用完');
@@ -248,14 +265,14 @@ export default function RecognizePage() {
     try {
       const images = await Promise.all(requestImageUris.map((uri) => readUriAsBase64(uri)));
       const data = await api.post<RecognizeReportReply>('/api/v1/ai/recognize', {
-        disease_type: diseaseType,
+        disease_type: requestDiseaseType,
         images,
       });
 
       if (requestIdRef.current !== requestId) return;
 
       const responseFields = data.fields ?? {};
-      const defs = buildInitialFields(diseaseType);
+      const defs = buildInitialFields(requestDiseaseType);
       const defKeys = new Set(defs.map((field) => field.key));
 
       const mapped = defs.map((field) => {
@@ -291,15 +308,25 @@ export default function RecognizePage() {
       if (requestIdRef.current !== requestId) return;
       setLoading(false);
     }
-  }, [diseaseType, imagesParam, quotaBlocked]);
+  }, [imagesParam, lesionContextMissing, quotaBlocked, requestDiseaseType]);
 
   useEffect(() => {
     if (subscriptionLoading) return;
+    if (lesionContextPending || lesionContextMissing) return;
     const key = `${diseaseType}|${imagesParam ?? ''}|${selectionLocked ? lesionId ?? '' : ''}`;
     if (autoRunKeyRef.current === key) return;
     autoRunKeyRef.current = key;
     void runRecognize();
-  }, [diseaseType, imagesParam, lesionId, runRecognize, selectionLocked, subscriptionLoading]);
+  }, [
+    diseaseType,
+    imagesParam,
+    lesionContextMissing,
+    lesionContextPending,
+    lesionId,
+    runRecognize,
+    selectionLocked,
+    subscriptionLoading,
+  ]);
 
   const confirmedCount = fields.filter(isConfirmedField).length;
   const totalCount = fields.length;
@@ -314,6 +341,16 @@ export default function RecognizePage() {
 
   const recognized = fields.filter((field) => field.confidence > CONFIDENCE_THRESHOLD && isValidFieldValue(field));
   const pending = fields.filter((field) => !(field.confidence > CONFIDENCE_THRESHOLD && isValidFieldValue(field)));
+
+  if (lesionContextPending) {
+    return (
+      <SafeAreaView className="flex-1 items-center justify-center bg-page-bg">
+        <ActivityIndicator size="large" color="#3D3528" />
+        <Text className="mt-4 text-primary">加载病灶信息...</Text>
+        <Text className="mt-2 text-sm text-neutral-text">正在确认病灶上下文</Text>
+      </SafeAreaView>
+    );
+  }
 
   if (loading) {
     return (
@@ -437,12 +474,13 @@ export default function RecognizePage() {
                 setPaywallVisible(true);
                 return;
               }
+                if (lesionContextMissing) return;
               const data = Object.fromEntries(fields.map((field) => [field.key, field.value]));
               router.push({
                 pathname: '/record/match' as any,
                 params: {
                   recognizedData: JSON.stringify(data),
-                  diseaseType,
+                    diseaseType: requestDiseaseType,
                   images: imagesParam ?? stringifyReportImageAssetsParam(imageAssets),
                   ...(lesionId ? { lesionId } : {}),
                 },
