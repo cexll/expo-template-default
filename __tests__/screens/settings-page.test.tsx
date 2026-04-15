@@ -84,5 +84,28 @@ describe('SettingsPage UI parity', () => {
       expect(screen.getByText('年度会员 · 有效期至 2026-12-31')).toBeTruthy();
     });
   });
+
+  it('shows free-plan quota remaining for both AI and summary export', async () => {
+    useAuthMock.mockReturnValue({
+      user: { phone: '13800000000' },
+      signOut: jest.fn(),
+    } as any);
+
+    listProfilesMock.mockResolvedValue([{ id: 'p1', nickname: '阿明' } as any]);
+
+    apiGetMock.mockResolvedValue({
+      plan: 'free',
+      is_active: false,
+      ai_recognize_remaining: 3,
+      summary_export_remaining: 1,
+      expires_at: null,
+    } as any);
+
+    renderWithQueryClient(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('免费版 · AI识别剩余3次 · 摘要导出剩余1次')).toBeTruthy();
+    });
+  });
 });
 

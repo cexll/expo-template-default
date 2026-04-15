@@ -3,13 +3,10 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import SummaryPage from '@/app/summary/[profileId]';
-
-const mockUseSubscriptionStatus = jest.fn();
+import { api } from '@/lib/api';
+import { readLocalSummaryExportUsed } from '@/lib/subscription/local-quota';
 
 jest.mock('expo-router', () => ({
-  router: {
-    push: jest.fn(),
-  },
   useLocalSearchParams: jest.fn(),
 }));
 
@@ -37,6 +34,16 @@ jest.mock('react-native-view-shot', () => {
   };
 });
 
+jest.mock('@/lib/api', () => ({
+  api: {
+    get: jest.fn(),
+    post: jest.fn(),
+    upload: jest.fn(),
+  },
+  AuthError: class AuthError extends Error {},
+  ApiError: class ApiError extends Error {},
+}));
+
 const mockUseProfile = jest.fn();
 const mockUseLesions = jest.fn();
 const mockUseActiveReminders = jest.fn();
@@ -61,20 +68,30 @@ jest.mock('@tanstack/react-query', () => {
   };
 });
 
-jest.mock('@/hooks/useSubscriptionStatus', () => ({
-  useSubscriptionStatus: () => mockUseSubscriptionStatus(),
-  canUseFeature: (status: any, feature: 'ai_recognize' | 'summary_export') => {
-    if (!status) return true;
-    if (status.isActive) return true;
-    const remaining = status.featureRemaining?.[feature];
-    if (typeof remaining === 'number') return remaining > 0;
-    return true;
-  },
-}));
+const apiGetMock = jest.mocked(api.get);
 
-describe('SummaryPage export', () => {
+describe('SummaryPage export quota consumption', () => {
+  const originalLocalStorage = globalThis.localStorage;
+
+  beforeEach(() => {
+    const store = new Map<string, string>();
+    // @ts-expect-error test shim
+    globalThis.localStorage = {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        store.set(key, value);
+      },
+      removeItem: (key: string) => {
+        store.delete(key);
+      },
+      clear: () => store.clear(),
+    };
+  });
+
   afterEach(() => {
     jest.clearAllMocks();
+    // @ts-expect-error test shim
+    globalThis.localStorage = originalLocalStorage;
   });
 
   function renderWithQueryClient(node: React.ReactElement) {
@@ -86,62 +103,51 @@ describe('SummaryPage export', () => {
         },
       },
     });
-    return render(<QueryClientProvider client={queryClient}>{node}</QueryClientProvider>);
+
+    return { queryClient, ...render(<QueryClientProvider client={queryClient}>{node}</QueryClientProvider>) };
   }
 
-  it('exports a real generated image through native share edge', async () => {
+  it('decrements remaining exports after success and blocks after the monthly free cap', async () => {
     const { useLocalSearchParams } = require('expo-router');
     (useLocalSearchParams as jest.Mock).mockReturnValue({ profileId: 'profile-1' });
 
-    mockUseSubscriptionStatus.mockReturnValue({ data: { isActive: true }, isLoading: false });
-
     mockUseProfile.mockReturnValue({
-      data: { id: 'profile-1', nickname: '本人', gender: 'female', birth_year: 1990, avatar_uri: null, sort_order: 0 },
+      data: { id: 'profile-1', nickname: '本人', gender: 'female', birth_year: 1990, avatar_uri: null, sort_order: 0 } as any,
+      isLoading: false,
+      isFetching: false,
     });
     mockUseLesions.mockReturnValue({ data: [] });
     mockUseActiveReminders.mockReturnValue({ data: [] });
 
+    apiGetMock.mockResolvedValue({
+      plan: 'free',
+      is_active: false,
+      summary_export_remaining: 2,
+      ai_recognize_remaining: 5,
+      expires_at: null,
+    } as any);
+
     mockIsAvailableAsync.mockResolvedValue(true);
     mockShareAsync.mockResolvedValue(undefined);
 
-    renderWithQueryClient(<SummaryPage />);
-
-    fireEvent.press(screen.getByText('导出为图片'));
+    const { queryClient } = renderWithQueryClient(<SummaryPage />);
 
     await waitFor(() => {
-      expect(mockShareAsync).toHaveBeenCalledTimes(1);
+      expect(queryClient.getQueryData(['subscription', 'status'])).toBeTruthy();
     });
-
-    expect(mockShareAsync).toHaveBeenCalledWith('file:///tmp/summary.png', expect.any(Object));
-  });
-
-  it('blocks export when quota is exhausted', async () => {
-    const { useLocalSearchParams } = require('expo-router');
-    (useLocalSearchParams as jest.Mock).mockReturnValue({ profileId: 'profile-1' });
-
-    mockUseSubscriptionStatus.mockReturnValue({
-      data: { isActive: false, featureRemaining: { summary_export: 0 } },
-      isLoading: false,
-    });
-
-    mockUseProfile.mockReturnValue({
-      data: { id: 'profile-1', nickname: '本人', gender: 'female', birth_year: 1990, avatar_uri: null, sort_order: 0 },
-    });
-    mockUseLesions.mockReturnValue({ data: [] });
-    mockUseActiveReminders.mockReturnValue({ data: [] });
-
-    mockIsAvailableAsync.mockResolvedValue(true);
-    mockShareAsync.mockResolvedValue(undefined);
-
-    renderWithQueryClient(<SummaryPage />);
 
     fireEvent.press(screen.getByText('导出为图片'));
+    await waitFor(() => expect(mockShareAsync).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(readLocalSummaryExportUsed()).toBe(1));
 
+    fireEvent.press(screen.getByText('导出为图片'));
+    await waitFor(() => expect(mockShareAsync).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(readLocalSummaryExportUsed()).toBe(2));
+
+    fireEvent.press(screen.getByText('导出为图片'));
     await waitFor(() => {
       expect(screen.getByText('升级解锁')).toBeTruthy();
     });
-
-    expect(mockShareAsync).not.toHaveBeenCalled();
-    expect(mockIsAvailableAsync).not.toHaveBeenCalled();
+    expect(mockShareAsync).toHaveBeenCalledTimes(2);
   });
 });

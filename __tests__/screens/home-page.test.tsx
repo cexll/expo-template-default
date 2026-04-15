@@ -184,7 +184,9 @@ describe('HomePage UI parity', () => {
 
     expect(screen.getByText('甲状腺 · 左叶')).toBeTruthy();
     expect(screen.getByText('当前大小')).toBeTruthy();
-    expect(screen.getByText('10×8mm')).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByText('10×8mm')).toBeTruthy();
+    });
     expect(screen.getByText('分级')).toBeTruthy();
     expect(screen.getByText('TI-RADS 4a')).toBeTruthy();
     expect(screen.getByText('较基线')).toBeTruthy();

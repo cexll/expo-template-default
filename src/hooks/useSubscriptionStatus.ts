@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { api } from '@/lib/api';
+import { formatLocalMonth, readLocalSummaryExportUsed } from '@/lib/subscription/local-quota';
 
 export type SubscriptionPlan = 'free' | 'monthly' | 'yearly' | string;
 
@@ -21,6 +22,10 @@ function pickString(value: unknown) {
 
 function pickBoolean(value: unknown) {
   return typeof value === 'boolean' ? value : null;
+}
+
+function pickNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
 export function normalizeSubscriptionStatus(raw: unknown): SubscriptionStatus {
@@ -89,9 +94,56 @@ export function normalizeSubscriptionStatus(raw: unknown): SubscriptionStatus {
     if (remaining !== null) featureRemaining[featureKey] = remaining;
   }
 
+  // Derive remaining quota from used/limit fields when explicit remaining is absent.
+  // This keeps the UI truthful across proto-shaped payloads and envelope-shaped payloads.
+  for (const featureKey of ['ai_recognize', 'summary_export'] as const) {
+    if (typeof featureRemaining[featureKey] === 'number') continue;
+
+    const used =
+      pickNumber(record[`${featureKey}_used`]) ??
+      (featureKey === 'ai_recognize' ? pickNumber(record.aiRecognizeUsed) : pickNumber(record.summaryExportUsed)) ??
+      null;
+    const limit =
+      pickNumber(record[`${featureKey}_limit`]) ??
+      (featureKey === 'ai_recognize' ? pickNumber(record.aiRecognizeLimit) : pickNumber(record.summaryExportLimit)) ??
+      null;
+
+    if (used === null || limit === null) continue;
+    if (limit < 0) continue;
+    featureRemaining[featureKey] = Math.max(0, Math.floor(limit - used));
+  }
+
+  // Client-side quota shadow: summary export is an on-device action, so we must decrement the free cap
+  // even when the backend status endpoint is mock-first and only exposes a quota snapshot.
+  // To avoid double-counting when the backend later implements export consumption, we only apply the
+  // local delta beyond the server-reported used count.
+  const isActive = explicitActive ?? activeFromExpiry;
+  if (!isActive) {
+    const month = formatLocalMonth();
+
+    const serverExportUsed =
+      pickNumber(record.summary_export_used) ??
+      (() => {
+        const usage = record.usage;
+        if (!usage || typeof usage !== 'object') return null;
+        const summary = (usage as Record<string, unknown>).summary_export;
+        if (!summary || typeof summary !== 'object') return null;
+        return pickNumber((summary as Record<string, unknown>).used);
+      })() ??
+      0;
+
+    const localUsed = readLocalSummaryExportUsed(month);
+    const localDelta = Math.max(0, localUsed - serverExportUsed);
+
+    const exportRemaining = featureRemaining.summary_export;
+    if (typeof exportRemaining === 'number' && localDelta > 0) {
+      featureRemaining.summary_export = Math.max(0, exportRemaining - localDelta);
+    }
+  }
+
   return {
     plan,
-    isActive: explicitActive ?? activeFromExpiry,
+    isActive,
     expiresAt,
     featureRemaining: Object.keys(featureRemaining).length > 0 ? featureRemaining : undefined,
   };

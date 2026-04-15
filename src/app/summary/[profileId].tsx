@@ -5,16 +5,18 @@ import { useLocalSearchParams } from 'expo-router';
 import ViewShot from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import { ChangeBadge } from '@/components/ChangeBadge';
+import { ComparisonRow } from '@/components/ComparisonRow';
 import { PaywallSheet } from '@/components/PaywallSheet';
-import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { listExaminationsByLesion } from '@/lib/db/queries/examinations';
 import { useLesions } from '@/hooks/useLesions';
 import { useProfile } from '@/hooks/useProfiles';
 import { useActiveReminders } from '@/hooks/useReminders';
 import { canUseFeature, useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
+import type { Examination, Lesion } from '@/lib/db/types';
+import { bumpLocalSummaryExportUsed, formatLocalMonth } from '@/lib/subscription/local-quota';
 
 function formatSize(sizeX: number | null, sizeY: number | null, sizeZ: number | null) {
   const values = [sizeX, sizeY, sizeZ].filter((v): v is number => v !== null);
@@ -31,12 +33,85 @@ function getRads(exam: { tirads: string | null; birads: string | null; lung_rads
 
 function calcChange(current: number, reference: number) {
   const diff = current - reference;
-  const pct = Math.round((diff / reference) * 100);
+  const pct = reference !== 0 ? Math.round((diff / reference) * 100) : 0;
   return {
     diff: diff.toFixed(1),
     pct,
     type: diff > 0 ? ('increase' as const) : diff < 0 ? ('decrease' as const) : ('unchanged' as const),
   };
+}
+
+function formatSignedDiff(value: string) {
+  return Number(value) > 0 ? `+${value}` : value;
+}
+
+function formatMm(value: number | null | undefined) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return null;
+  return value.toFixed(1);
+}
+
+function formatMonth(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 7);
+  return date.toISOString().slice(0, 7);
+}
+
+function getDiseaseLabel(diseaseType: Lesion['disease_type']) {
+  switch (diseaseType) {
+    case 'thyroid':
+      return '甲状腺';
+    case 'breast':
+      return '乳腺';
+    case 'lung':
+      return '肺';
+  }
+}
+
+function getRadsRowKey(diseaseType: Lesion['disease_type']) {
+  if (diseaseType === 'thyroid') return 'tirads';
+  if (diseaseType === 'breast') return 'birads';
+  return 'lung_rads';
+}
+
+type QualRowSpec = {
+  key: keyof Examination;
+  label: string;
+  format?: (value: unknown) => string;
+};
+
+const THYROID_ROWS: QualRowSpec[] = [
+  { key: 'tirads', label: 'TI-RADS', format: (v) => (typeof v === 'string' && v ? `${v}级` : '—') },
+  { key: 'calcification', label: '钙化', format: (v) => (typeof v === 'string' && v ? v : '—') },
+  { key: 'echo_type', label: '回声', format: (v) => (typeof v === 'string' && v ? v : '—') },
+  { key: 'border', label: '边界', format: (v) => (typeof v === 'string' && v ? v : '—') },
+];
+
+const BREAST_ROWS: QualRowSpec[] = [
+  { key: 'birads', label: 'BI-RADS', format: (v) => (typeof v === 'string' && v ? v : '—') },
+  { key: 'shape', label: '形状', format: (v) => (typeof v === 'string' && v ? v : '—') },
+  { key: 'orientation', label: '走向', format: (v) => (typeof v === 'string' && v ? v : '—') },
+];
+
+const LUNG_ROWS: QualRowSpec[] = [
+  { key: 'lung_rads', label: 'LUNG-RADS', format: (v) => (typeof v === 'string' && v ? `${v}级` : '—') },
+  { key: 'density', label: '密度', format: (v) => (typeof v === 'string' && v ? v : '—') },
+  { key: 'morphology', label: '形态', format: (v) => (typeof v === 'string' && v ? v : '—') },
+  {
+    key: 'pleural_pull',
+    label: '胸膜牵拉',
+    format: (v) => (v === 1 ? '有' : v === 0 ? '无' : '—'),
+  },
+];
+
+function getQualRows(diseaseType: Lesion['disease_type']): QualRowSpec[] {
+  switch (diseaseType) {
+    case 'thyroid':
+      return THYROID_ROWS;
+    case 'breast':
+      return BREAST_ROWS;
+    case 'lung':
+      return LUNG_ROWS;
+  }
 }
 
 function getRemainingDays(nextExamDate: string | null | undefined) {
@@ -56,9 +131,11 @@ export default function SummaryPage() {
   const { profileId } = useLocalSearchParams<{ profileId: string }>();
   const id = typeof profileId === 'string' ? profileId : '';
 
-  const { data: profile } = useProfile(id);
+  const profileQuery = useProfile(id);
+  const profile = profileQuery.data;
   const { data: lesions = [] } = useLesions(id);
   const { data: reminders = [] } = useActiveReminders(id);
+  const queryClient = useQueryClient();
 
   const viewShotRef = useRef<any>(null);
   const [exporting, setExporting] = useState(false);
@@ -77,57 +154,114 @@ export default function SummaryPage() {
     })),
   });
 
-  const lesionSummaries = useMemo(() => {
+  const remindersByLesionId = useMemo(() => {
+    const map = new Map<string, (typeof reminders)[number]>();
+    for (const r of reminders) {
+      if (r?.lesion_id) map.set(r.lesion_id, r);
+    }
+    return map;
+  }, [reminders]);
+
+  const lesionBlocks = useMemo(() => {
     return activeLesions.map((lesion, index) => {
-      const exams = examinations[index]?.data ?? [];
-      const latest = exams[0];
-      const baseline = exams.length > 0 ? exams[exams.length - 1] : null;
+      const allExams = examinations[index]?.data ?? [];
+      const windowExams = allExams.slice(0, 3);
+
+      const latest = windowExams[0] ?? null;
+      const previous = windowExams.length > 1 ? windowExams[1] : null;
+      const baseline = windowExams.length > 0 ? windowExams[windowExams.length - 1] : null;
 
       const latestSize = latest ? formatSize(latest.size_x, latest.size_y, latest.size_z) : '暂无检查';
       const radsGrade = latest ? getRads(latest) : '待补充分级';
 
-      const baselineSize = baseline?.size_x !== null && baseline?.size_x !== undefined ? `${baseline.size_x}mm` : null;
+      const latestSizeX = latest?.size_x ?? null;
+      const baselineSizeX = baseline?.size_x ?? null;
+      const previousSizeX = previous?.size_x ?? null;
 
-      const change =
-        latest?.size_x !== null &&
-        latest?.size_x !== undefined &&
-        baseline?.size_x !== null &&
-        baseline?.size_x !== undefined &&
-        exams.length >= 2
-          ? calcChange(latest.size_x, baseline.size_x)
+      const vsBaseline =
+        latestSizeX !== null && baselineSizeX !== null && windowExams.length >= 2
+          ? calcChange(latestSizeX, baselineSizeX)
           : null;
+      const vsPrevious =
+        latestSizeX !== null && previousSizeX !== null ? calcChange(latestSizeX, previousSizeX) : null;
 
-      const changeValue = change ? `${change.diff.startsWith('-') ? '' : '+'}${change.diff}mm (${change.pct > 0 ? '+' : ''}${change.pct}%)` : null;
+      const chainExams = [...windowExams].reverse();
+      const qualitativeRows = getQualRows(lesion.disease_type).map((row) => {
+        const values = chainExams.map((exam) => {
+          const raw = exam[row.key];
+          return row.format ? row.format(raw) : typeof raw === 'string' && raw ? raw : '—';
+        });
+
+        const earliest = values[0] ?? '—';
+        const latestValue = values[values.length - 1] ?? '—';
+
+        const normalizedEarliest = earliest === '—' ? '' : earliest;
+        const normalizedLatest = latestValue === '—' ? '' : latestValue;
+
+        const isNew = !normalizedEarliest && Boolean(normalizedLatest);
+        const hasChanged = isNew || (normalizedEarliest !== normalizedLatest && Boolean(normalizedLatest || normalizedEarliest));
+
+        const conclusionType = isNew ? ('new' as const) : hasChanged ? ('increase' as const) : ('unchanged' as const);
+        const conclusionValue = hasChanged && !isNew ? '变化' : undefined;
+
+        return {
+          key: row.key,
+          label: row.label,
+          values,
+          hasChanged,
+          conclusionType,
+          conclusionValue,
+        };
+      });
+
+      const radsKey = getRadsRowKey(lesion.disease_type);
+      const radsRow = qualitativeRows.find((row) => row.key === radsKey) ?? null;
+      const changedRows = qualitativeRows.filter((row) => row.hasChanged && row.key !== radsKey);
+      const displayRows =
+        windowExams.length >= 2
+          ? [...(radsRow ? [radsRow] : []), ...changedRows.slice(0, 2)]
+          : [];
+
+      const reminder = remindersByLesionId.get(lesion.id) ?? null;
+      const remainingDays = reminder ? getRemainingDays(reminder.next_exam_date) : undefined;
 
       return {
+        id: lesion.id,
         label: lesion.label,
+        location: lesion.location,
         diseaseType: lesion.disease_type,
+        diseaseLabel: getDiseaseLabel(lesion.disease_type),
         latestSize,
         radsGrade,
-        baselineSize,
-        changeType: change?.type ?? null,
-        changeValue,
-        examCount: exams.length,
+        examCount: allExams.length,
+        windowExams,
+        vsPrevious,
+        vsBaseline,
+        displayRows,
+        reminder,
+        remainingDays,
       };
     });
-  }, [activeLesions, examinations]);
+  }, [activeLesions, examinations, remindersByLesionId]);
 
   const totalExamCount = useMemo(() => {
-    return lesionSummaries.reduce((sum, lesion) => sum + lesion.examCount, 0);
-  }, [lesionSummaries]);
+    return lesionBlocks.reduce((sum, lesion) => sum + lesion.examCount, 0);
+  }, [lesionBlocks]);
 
   const needsAttention = useMemo(() => {
-    const gradeCount = lesionSummaries.filter(
-      (lesion) => lesion.radsGrade.includes('3') || lesion.radsGrade.includes('4')
-    ).length;
+    const attention = new Set<string>();
 
-    const urgentReminderCount = reminders.filter((reminder) => {
-      const days = getRemainingDays(reminder.next_exam_date);
-      return days !== undefined && days <= 30;
-    }).length;
+    for (const lesion of lesionBlocks) {
+      if (lesion.radsGrade.includes('3') || lesion.radsGrade.includes('4')) {
+        attention.add(lesion.id);
+      }
+      if (lesion.remainingDays !== undefined && lesion.remainingDays <= 30) {
+        attention.add(lesion.id);
+      }
+    }
 
-    return Math.max(gradeCount, urgentReminderCount);
-  }, [lesionSummaries, reminders]);
+    return attention.size;
+  }, [lesionBlocks]);
 
   const exportImage = useCallback(async () => {
     if (!profile) {
@@ -139,7 +273,11 @@ export default function SummaryPage() {
       setExportError('正在获取会员状态，请稍后重试');
       return;
     }
-    if (subscriptionStatus && !canUseFeature(subscriptionStatus, 'summary_export')) {
+    if (!subscriptionStatus) {
+      setExportError('无法获取会员状态，请稍后重试');
+      return;
+    }
+    if (!canUseFeature(subscriptionStatus, 'summary_export')) {
       setExportError('本月导出次数已用完');
       setPaywallVisible(true);
       return;
@@ -163,12 +301,21 @@ export default function SummaryPage() {
         dialogTitle: `${profile.nickname}的就诊摘要`,
         UTI: 'public.png',
       });
+
+      if (!subscriptionStatus.isActive) {
+        const localUsed = bumpLocalSummaryExportUsed(formatLocalMonth(), 1);
+        // Force subscription observers to re-run normalization (which applies the local quota shadow).
+        queryClient.setQueryData(['subscription', 'status'], (prev: unknown) => {
+          if (!prev || typeof prev !== 'object') return prev;
+          return { ...(prev as Record<string, unknown>), __local_summary_export_used: localUsed };
+        });
+      }
     } catch (e) {
       setExportError(e instanceof Error ? e.message : '导出失败，请稍后重试');
     } finally {
       setExporting(false);
     }
-  }, [profile, subscriptionLoading, subscriptionStatus]);
+  }, [profile, queryClient, subscriptionLoading, subscriptionStatus]);
 
   if (!id) {
     return (
@@ -181,6 +328,15 @@ export default function SummaryPage() {
   }
 
   if (!profile) {
+    if (profileQuery.isLoading || profileQuery.isFetching) {
+      return (
+        <SafeAreaView className="flex-1 bg-page-bg">
+          <View className="flex-1 items-center justify-center px-6">
+            <Text className="text-lg text-neutral-text">加载中…</Text>
+          </View>
+        </SafeAreaView>
+      );
+    }
     return (
       <SafeAreaView className="flex-1 bg-page-bg">
         <View className="flex-1 items-center justify-center px-6">
@@ -203,14 +359,14 @@ export default function SummaryPage() {
             <View className="mt-2 flex-row flex-wrap gap-4">
               <Text className="text-sm text-neutral-text">{profile.gender === 'female' ? '女' : '男'}</Text>
               <Text className="text-sm text-neutral-text">{age}岁</Text>
-              <Text className="text-sm text-neutral-text">在档病灶 {lesionSummaries.length}个</Text>
+              <Text className="text-sm text-neutral-text">在档病灶 {lesionBlocks.length}个</Text>
             </View>
             <Text className="mt-3 text-xs text-neutral-text">档案编号 {id}</Text>
           </Card>
 
           <View className="mb-4 flex-row gap-3">
             <Card className="flex-1 items-center py-4">
-              <Text className="font-mono text-2xl font-bold text-primary">{lesionSummaries.length}</Text>
+              <Text className="font-mono text-2xl font-bold text-primary">{lesionBlocks.length}</Text>
               <Text className="mt-1 text-xs text-neutral-text">在档病灶</Text>
             </Card>
             <Card className="flex-1 items-center py-4">
@@ -223,47 +379,123 @@ export default function SummaryPage() {
             </Card>
           </View>
 
-          {lesionSummaries.map((lesion) => {
-            const badgeVariant =
-              lesion.radsGrade.includes('4') ? 'new' :
-              lesion.radsGrade.includes('3') ? 'increase' :
-              'stable';
+          {(['thyroid', 'breast', 'lung'] as const).map((disease) => {
+            const blocks = lesionBlocks.filter((l) => l.diseaseType === disease);
+            if (blocks.length === 0) return null;
 
             return (
-              <Card key={lesion.label} className="mb-3">
-                <View className="mb-3 flex-row items-start justify-between gap-3">
-                  <View className="flex-1">
-                    <Text className="text-sm font-semibold text-primary">{lesion.label}</Text>
-                    <Text className="mt-1 text-xs uppercase tracking-[1.5px] text-neutral-text">
-                      {lesion.diseaseType}
-                    </Text>
-                  </View>
-                  <Badge text={lesion.radsGrade} variant={badgeVariant} />
-                </View>
+              <View key={disease} className="mb-2">
+                <Text className="mb-2 text-xs font-semibold text-neutral-text">{getDiseaseLabel(disease)}</Text>
+                {blocks.map((lesion) => {
+                  const latest = lesion.windowExams[0] ?? null;
+                  const latestSizeX = latest?.size_x ?? null;
 
-                <View className="flex-row flex-wrap gap-4">
-                  <View className="min-w-[108px]">
-                    <Text className="text-xs text-neutral-text">当前大小</Text>
-                    <Text className="mt-1 font-mono text-sm text-primary">{lesion.latestSize}</Text>
-                  </View>
-                  {lesion.changeType && lesion.changeValue ? (
-                    <View>
-                      <Text className="text-xs text-neutral-text">较基线</Text>
-                      <View className="mt-1">
-                        <ChangeBadge type={lesion.changeType} value={lesion.changeValue} />
+                  const changeType = lesion.vsBaseline?.type ?? null;
+                  const changeLabel =
+                    changeType === 'increase'
+                      ? '增大'
+                      : changeType === 'decrease'
+                        ? '减小'
+                        : undefined;
+
+                  return (
+                    <Card key={lesion.id} className="mb-3 overflow-hidden">
+                      <View className="mb-3 flex-row items-start justify-between gap-3">
+                        <View className="flex-1">
+                          <Text className="text-sm font-semibold text-primary">{lesion.label}</Text>
+                          <Text className="mt-1 text-xs text-neutral-text">
+                            {lesion.diseaseLabel}
+                            {lesion.location ? ` · ${lesion.location}` : ''}
+                          </Text>
+                        </View>
+                        {lesion.windowExams.length >= 2 && changeType ? (
+                          <ChangeBadge type={changeType} value={changeLabel} />
+                        ) : null}
                       </View>
-                    </View>
-                  ) : null}
-                  {lesion.baselineSize ? (
-                    <View className="min-w-[96px]">
-                      <Text className="text-xs text-neutral-text">基线大小</Text>
-                      <Text className="mt-1 font-mono text-sm text-primary">{lesion.baselineSize}</Text>
-                    </View>
-                  ) : null}
-                </View>
 
-                <Text className="mt-3 text-xs text-neutral-text">共{lesion.examCount}次检查记录</Text>
-              </Card>
+                      <View className="mb-3 flex-row items-end">
+                        <View className="mr-4">
+                          <Text className="text-3xl font-bold text-primary">
+                            {formatMm(latestSizeX) ?? '—'}
+                            <Text className="text-base font-semibold text-neutral-text">mm</Text>
+                          </Text>
+                          <Text className="mt-1 text-xs text-neutral-text">最新大小</Text>
+                        </View>
+                        <View className="flex-1">
+                          {lesion.vsPrevious ? (
+                            <View className="mb-1 flex-row items-center">
+                              <Text className="w-12 text-xs text-neutral-text">较上次</Text>
+                              <ChangeBadge
+                                type={lesion.vsPrevious.type}
+                                value={`${formatSignedDiff(lesion.vsPrevious.diff)}mm (${lesion.vsPrevious.pct > 0 ? '+' : ''}${lesion.vsPrevious.pct}%)`}
+                              />
+                            </View>
+                          ) : null}
+                          {lesion.vsBaseline ? (
+                            <View className="flex-row items-center">
+                              <Text className="w-12 text-xs text-neutral-text">较基线</Text>
+                              <ChangeBadge
+                                type={lesion.vsBaseline.type}
+                                value={`${formatSignedDiff(lesion.vsBaseline.diff)}mm (${lesion.vsBaseline.pct > 0 ? '+' : ''}${lesion.vsBaseline.pct}%)`}
+                              />
+                            </View>
+                          ) : null}
+                        </View>
+                      </View>
+
+                      {lesion.windowExams.length > 0 ? (
+                        <View className="mb-3 flex-row items-center justify-between border-b border-neutral-bg pb-3">
+                          {[...lesion.windowExams].reverse().map((exam, idx, arr) => {
+                            const isLatest = idx === arr.length - 1;
+                            const value = formatMm(exam.size_x);
+                            return (
+                              <View key={`${exam.id}-${idx}`} className="items-center">
+                                <Text className={`font-mono text-xs ${isLatest ? 'text-primary font-semibold' : 'text-neutral-text'}`}>
+                                  {value ?? '—'}
+                                </Text>
+                                <Text className={`mt-1 text-[10px] ${isLatest ? 'text-increase-text' : 'text-neutral-text'}`}>
+                                  {formatMonth(exam.exam_date)}
+                                </Text>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      ) : null}
+
+                      {lesion.displayRows.length > 0 ? (
+                        <View className="mb-2">
+                          {lesion.displayRows.map((row) => (
+                            <ComparisonRow
+                              key={String(row.key)}
+                              label={row.label}
+                              values={row.values}
+                              changeType={row.conclusionType}
+                              changeValue={row.conclusionValue}
+                              hasChanged={row.hasChanged}
+                            />
+                          ))}
+                        </View>
+                      ) : null}
+
+                      <Text className="text-xs text-neutral-text">共{lesion.examCount}次检查记录 · {lesion.radsGrade}</Text>
+
+                      {lesion.reminder ? (
+                        <View className="mt-3 flex-row items-center justify-between rounded-xl bg-neutral-bg px-3 py-2">
+                          <Text className="text-xs text-neutral-text">建议复查</Text>
+                          <Text className="text-xs text-primary">
+                            {lesion.reminder.next_exam_date}
+                            {typeof lesion.remainingDays === 'number'
+                              ? lesion.remainingDays < 0
+                                ? ` · 已逾期${Math.abs(lesion.remainingDays)}天`
+                                : ` · 还有${lesion.remainingDays}天`
+                              : ''}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </Card>
+                  );
+                })}
+              </View>
             );
           })}
 

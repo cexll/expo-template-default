@@ -69,8 +69,10 @@ export default function SettingsPage() {
     }
 
     const aiRemaining = subscriptionStatus.featureRemaining?.ai_recognize;
+    const exportRemaining = subscriptionStatus.featureRemaining?.summary_export;
     const parts = [formatSubscriptionPlan('free')];
     if (typeof aiRemaining === 'number') parts.push(`AI识别剩余${aiRemaining}次`);
+    if (typeof exportRemaining === 'number') parts.push(`摘要导出剩余${exportRemaining}次`);
     return parts.join(' · ');
   })();
 
