@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import { Platform } from 'react-native';
 import { api, AuthError } from '@/lib/api';
 import { saveTokens, clearTokens, getAccessToken, subscribeTokenChanges } from '@/lib/auth/token-storage';
 
@@ -20,6 +21,10 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function isWebPlatform() {
+  return Platform.OS === 'web';
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -29,7 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const token = await getAccessToken();
-        if (token) {
+        if (isWebPlatform() || token) {
           const me = await api.get<AuthUser>('/api/v1/auth/me');
           setUser(me);
         }
@@ -61,11 +66,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }>('/api/v1/auth/sms/verify', { phone, code });
 
     try {
-      await saveTokens({
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        expiresIn: data.expires_in,
-      });
+      if (!isWebPlatform()) {
+        await saveTokens({
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token,
+          expiresIn: data.expires_in,
+        });
+      }
 
       setIsNewUser(data.is_new_user);
       const me = await api.get<AuthUser>('/api/v1/auth/me');
@@ -87,11 +94,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }>('/api/v1/auth/wechat/login', { code });
 
     try {
-      await saveTokens({
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        expiresIn: data.expires_in,
-      });
+      if (!isWebPlatform()) {
+        await saveTokens({
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token,
+          expiresIn: data.expires_in,
+        });
+      }
 
       setIsNewUser(data.is_new_user);
       const me = await api.get<AuthUser>('/api/v1/auth/me');
@@ -105,6 +114,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    if (isWebPlatform()) {
+      try {
+        await api.post('/api/v1/auth/logout');
+      } catch (error) {
+        if (!(error instanceof AuthError)) {
+          throw error;
+        }
+      }
+    }
+
     await clearTokens();
     setUser(null);
     setIsNewUser(false);

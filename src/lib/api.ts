@@ -1,9 +1,19 @@
-import { getAccessToken, getRefreshToken, saveTokens, clearTokens, type TokenPair } from './auth/token-storage';
+import { Platform } from 'react-native';
+import { getAccessToken, getRefreshToken, saveTokens, clearTokens } from './auth/token-storage';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:18000';
+const IS_WEB = Platform.OS === 'web';
 
 let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
+
+function withCredentials(options: RequestInit): RequestInit {
+  if (!IS_WEB) return options;
+  return {
+    ...options,
+    credentials: 'include',
+  };
+}
 
 async function refreshToken(): Promise<boolean> {
   if (isRefreshing && refreshPromise) return refreshPromise;
@@ -11,25 +21,33 @@ async function refreshToken(): Promise<boolean> {
 
   refreshPromise = (async () => {
     try {
-      const token = await getRefreshToken();
-      if (!token) return false;
+      let refreshTokenBody: Record<string, string> | Record<string, never>;
+      if (IS_WEB) {
+        refreshTokenBody = {};
+      } else {
+        const token = await getRefreshToken();
+        if (!token) return false;
+        refreshTokenBody = { refresh_token: token };
+      }
 
-      const res = await fetch(`${API_BASE}/api/v1/auth/token/refresh`, {
+      const res = await fetch(`${API_BASE}/api/v1/auth/token/refresh`, withCredentials({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: token }),
-      });
+        body: JSON.stringify(refreshTokenBody),
+      }));
 
       if (!res.ok) return false;
 
       const data = await res.json();
       if (data.code !== 0) return false;
 
-      await saveTokens({
-        accessToken: data.data.access_token,
-        refreshToken: data.data.refresh_token,
-        expiresIn: data.data.expires_in,
-      });
+      if (!IS_WEB) {
+        await saveTokens({
+          accessToken: data.data.access_token,
+          refreshToken: data.data.refresh_token,
+          expiresIn: data.data.expires_in,
+        });
+      }
       return true;
     } catch {
       return false;
@@ -49,18 +67,22 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...(options.headers as Record<string, string>),
   };
 
-  if (accessToken) {
+  if (!IS_WEB && accessToken) {
     headers['Authorization'] = `Bearer ${accessToken}`;
   }
 
-  let res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  let res = await fetch(`${API_BASE}${path}`, withCredentials({ ...options, headers }));
 
-  if (res.status === 401 && accessToken) {
+  if (res.status === 401 && (IS_WEB || accessToken)) {
     const refreshed = await refreshToken();
     if (refreshed) {
-      const newToken = await getAccessToken();
-      headers['Authorization'] = `Bearer ${newToken}`;
-      res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+      const newToken = IS_WEB ? null : await getAccessToken();
+      if (newToken) {
+        headers['Authorization'] = `Bearer ${newToken}`;
+      } else {
+        delete headers['Authorization'];
+      }
+      res = await fetch(`${API_BASE}${path}`, withCredentials({ ...options, headers }));
     } else {
       await clearTokens();
       throw new AuthError('Session expired');
@@ -97,13 +119,33 @@ export const api = {
   upload: async <T>(path: string, formData: FormData): Promise<T> => {
     const accessToken = await getAccessToken();
     const headers: Record<string, string> = {};
-    if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+    if (!IS_WEB && accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
 
-    const res = await fetch(`${API_BASE}${path}`, {
+    let res = await fetch(`${API_BASE}${path}`, withCredentials({
       method: 'POST',
       headers,
       body: formData,
-    });
+    }));
+
+    if (res.status === 401 && (IS_WEB || accessToken)) {
+      const refreshed = await refreshToken();
+      if (refreshed) {
+        const newToken = IS_WEB ? null : await getAccessToken();
+        if (newToken) {
+          headers['Authorization'] = `Bearer ${newToken}`;
+        } else {
+          delete headers['Authorization'];
+        }
+        res = await fetch(`${API_BASE}${path}`, withCredentials({
+          method: 'POST',
+          headers,
+          body: formData,
+        }));
+      } else {
+        await clearTokens();
+        throw new AuthError('Session expired');
+      }
+    }
 
     const json = await res.json();
     if (!res.ok || json.code !== 0) {

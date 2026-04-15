@@ -30,6 +30,8 @@ describe('token storage (web)', () => {
      
     const tokenStorage = require('@/lib/auth/token-storage') as typeof import('@/lib/auth/token-storage');
     await tokenStorage.saveTokens({ accessToken: 'a1', refreshToken: 'r1', expiresIn: 3600 });
+    await expect(tokenStorage.getAccessToken()).resolves.toBeNull();
+    await expect(tokenStorage.getRefreshToken()).resolves.toBeNull();
 
     expect(setItem).not.toHaveBeenCalled();
     expect(getItem).not.toHaveBeenCalled();
