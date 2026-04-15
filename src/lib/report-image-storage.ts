@@ -11,6 +11,13 @@ function ensureTrailingSlash(value: string) {
   return value.endsWith('/') ? value : `${value}/`;
 }
 
+function getNativeReportImagesDirPrefix(): string | null {
+  if (Platform.OS === 'web') return null;
+  const base = getBaseDirectory();
+  if (!base) return null;
+  return `${ensureTrailingSlash(base)}report-images/`;
+}
+
 function inferExtensionFromUri(uri: string): string {
   const withoutQuery = uri.split('#')[0]?.split('?')[0] ?? uri;
   const match = withoutQuery.match(/\.([a-zA-Z0-9]+)$/);
@@ -86,6 +93,25 @@ export type PersistedReportImage = {
   mimeType: string | null;
 };
 
+export async function cleanupPersistedReportImages(persisted: PersistedReportImage[]): Promise<void> {
+  const dirPrefix = getNativeReportImagesDirPrefix();
+  if (!dirPrefix) return;
+
+  const toDelete = persisted
+    .map((img) => img.uri)
+    .filter((uri) => typeof uri === 'string' && uri.startsWith(dirPrefix));
+
+  await Promise.all(
+    toDelete.map(async (uri) => {
+      try {
+        await FileSystem.deleteAsync(uri, { idempotent: true });
+      } catch {
+        // Best-effort cleanup: ignore failures to avoid masking the original error.
+      }
+    })
+  );
+}
+
 async function persistOneReportImage(args: { source: ReportImageAsset; examinationId: string; sortOrder: number }): Promise<PersistedReportImage> {
   // On web, storing blob:/file: URIs in SQLite won't survive reloads and often won't render later.
   // Convert the image into a stable data URL and store that into the report_images table.
@@ -109,12 +135,22 @@ async function persistOneReportImage(args: { source: ReportImageAsset; examinati
     await FileSystem.copyAsync({ from: args.source.uri, to: destUri });
     return { uri: destUri, mimeType: args.source.mimeType };
   } catch {
-    // Last-resort fallback: write base64 bytes to the destination URI.
-    // NOTE: This does not attempt to infer MIME type from URI suffixes. MIME is preserved only
-    // when provided by the caller (picker metadata) or when we can observe it directly (web data URL).
-    const base64 = await FileSystem.readAsStringAsync(args.source.uri, { encoding: FileSystem.EncodingType.Base64 });
-    await FileSystem.writeAsStringAsync(destUri, base64, { encoding: FileSystem.EncodingType.Base64 });
-    return { uri: destUri, mimeType: args.source.mimeType };
+    try {
+      // Last-resort fallback: write base64 bytes to the destination URI.
+      // NOTE: This does not attempt to infer MIME type from URI suffixes. MIME is preserved only
+      // when provided by the caller (picker metadata) or when we can observe it directly (web data URL).
+      const base64 = await FileSystem.readAsStringAsync(args.source.uri, { encoding: FileSystem.EncodingType.Base64 });
+      await FileSystem.writeAsStringAsync(destUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+      return { uri: destUri, mimeType: args.source.mimeType };
+    } catch (err) {
+      try {
+        // Clean up partially created destination files on failure to avoid orphaned native files.
+        await FileSystem.deleteAsync(destUri, { idempotent: true });
+      } catch {
+        // ignore cleanup failures
+      }
+      throw err;
+    }
   }
 }
 
@@ -124,14 +160,19 @@ export async function persistReportImages(sourceImages: ReportImageAsset[], exam
     .slice(0, 5);
   const results: PersistedReportImage[] = [];
 
-  for (let i = 0; i < cleaned.length; i += 1) {
-    results.push(
-      await persistOneReportImage({
-        source: cleaned[i],
-        examinationId,
-        sortOrder: i,
-      })
-    );
+  try {
+    for (let i = 0; i < cleaned.length; i += 1) {
+      results.push(
+        await persistOneReportImage({
+          source: cleaned[i],
+          examinationId,
+          sortOrder: i,
+        })
+      );
+    }
+  } catch (err) {
+    await cleanupPersistedReportImages(results);
+    throw err;
   }
 
   return results;
