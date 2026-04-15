@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -31,7 +31,13 @@ function parseNumber(value: unknown) {
 
 
 export default function MatchPage() {
-  const params = useLocalSearchParams<{ recognizedData?: string; diseaseType?: string; images?: string; debugFail?: string }>();
+  const params = useLocalSearchParams<{
+    recognizedData?: string;
+    diseaseType?: string;
+    images?: string;
+    lesionId?: string;
+    debugFail?: string;
+  }>();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createNew, setCreateNew] = useState(false);
   const [error, setError] = useState('');
@@ -39,6 +45,9 @@ export default function MatchPage() {
   const queryClient = useQueryClient();
 
   const { activeProfileId } = useActiveProfile();
+
+  const lesionIdParam = Array.isArray(params.lesionId) ? params.lesionId[0] : params.lesionId;
+  const lockedLesionId = typeof lesionIdParam === 'string' && lesionIdParam ? lesionIdParam : null;
 
   const diseaseType = (params.diseaseType === 'thyroid' ||
   params.diseaseType === 'breast' ||
@@ -51,6 +60,16 @@ export default function MatchPage() {
     if (!diseaseType) return lesions.filter((lesion) => lesion.is_archived === 0);
     return lesions.filter((lesion) => lesion.is_archived === 0 && lesion.disease_type === diseaseType);
   }, [diseaseType, lesions]);
+
+  const lockEligible = Boolean(lockedLesionId && candidateLesions.some((lesion) => lesion.id === lockedLesionId));
+  const selectionLocked = lockEligible;
+
+  useEffect(() => {
+    if (!lockedLesionId) return;
+    if (!candidateLesions.some((lesion) => lesion.id === lockedLesionId)) return;
+    setSelectedId(lockedLesionId);
+    setCreateNew(false);
+  }, [candidateLesions, lockedLesionId]);
 
   const examinationResults = useQueries({
     queries: candidateLesions.map((lesion) => ({
@@ -89,10 +108,17 @@ export default function MatchPage() {
     return scoreLesionMatch(location, sizeX, lesionMatchInputs);
   }, [lesionMatchInputs, location, sizeX]);
 
+  const visibleMatches = useMemo(() => {
+    if (!selectionLocked || !lockedLesionId) return matches;
+    return matches.filter((match) => match.lesionId === lockedLesionId);
+  }, [lockedLesionId, matches, selectionLocked]);
+
   // Auto-select if confidence >= 80%
   const topMatch = matches[0] ?? null;
   const autoMatch = topMatch && topMatch.confidence >= 80 ? topMatch : null;
-  const effectiveSelected = selectedId || (!createNew && autoMatch ? autoMatch.lesionId : null);
+  const effectiveSelected = selectionLocked
+    ? lockedLesionId
+    : selectedId || (!createNew && autoMatch ? autoMatch.lesionId : null);
 
   const selectedLabel = createNew
     ? '新建病灶'
@@ -154,6 +180,15 @@ export default function MatchPage() {
         <Text className="text-2xl font-bold text-primary mt-4 mb-2">匹配病灶</Text>
         <Text className="text-sm text-neutral-text mb-6">选择此次检查记录归属的病灶</Text>
 
+        {selectionLocked ? (
+          <Card className="mb-3">
+            <Text className="text-sm font-semibold text-primary">新增记录</Text>
+            <Text className="mt-1 text-xs text-neutral-text">
+              本次检查将直接添加到当前病灶：{candidateLesions.find((l) => l.id === lockedLesionId)?.label || lockedLesionId}
+            </Text>
+          </Card>
+        ) : null}
+
         {reportImageUris.length > 0 ? (
           <View className="mb-4">
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="-mx-4 px-4">
@@ -177,10 +212,12 @@ export default function MatchPage() {
           </Card>
         ) : null}
 
-        {matches.map((match) => (
+        {visibleMatches.map((match) => (
           <Pressable
             key={match.lesionId}
+            disabled={selectionLocked && match.lesionId !== lockedLesionId}
             onPress={() => {
+              if (selectionLocked) return;
               setSelectedId(match.lesionId);
               setCreateNew(false);
             }}
@@ -202,19 +239,21 @@ export default function MatchPage() {
           </Pressable>
         ))}
 
-        <Pressable
-          onPress={() => {
-            setCreateNew(true);
-            setSelectedId(null);
-          }}
-        >
-          <Card className={`mb-3 ${createNew ? 'border-2 border-primary' : ''}`}>
-            <View className="flex-row items-center">
-              <Text className="text-xl mr-3">+</Text>
-              <Text className="text-sm font-semibold text-primary">新建病灶</Text>
-            </View>
-          </Card>
-        </Pressable>
+        {!selectionLocked ? (
+          <Pressable
+            onPress={() => {
+              setCreateNew(true);
+              setSelectedId(null);
+            }}
+          >
+            <Card className={`mb-3 ${createNew ? 'border-2 border-primary' : ''}`}>
+              <View className="flex-row items-center">
+                <Text className="text-xl mr-3">+</Text>
+                <Text className="text-sm font-semibold text-primary">新建病灶</Text>
+              </View>
+            </Card>
+          </Pressable>
+        ) : null}
       </ScrollView>
 
       <View className="px-4 py-4 bg-card border-t border-neutral-bg">

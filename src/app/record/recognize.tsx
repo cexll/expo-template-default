@@ -183,11 +183,13 @@ function normalizeOptionValue(value: string, options: string[]): string {
 }
 
 export default function RecognizePage() {
-  const params = useLocalSearchParams<{ images?: string; diseaseType?: string }>();
+  const params = useLocalSearchParams<{ images?: string; diseaseType?: string; lesionId?: string }>();
   const diseaseType = useMemo(() => parseDiseaseType(params.diseaseType), [params.diseaseType]);
   const imagesParam = Array.isArray(params.images) ? params.images[0] : params.images;
   const imageAssets = useMemo(() => parseReportImageAssetsParam(imagesParam), [imagesParam]);
   const imageUris = useMemo(() => imageAssets.map((img) => img.uri), [imageAssets]);
+  const lesionIdParam = Array.isArray(params.lesionId) ? params.lesionId[0] : params.lesionId;
+  const lesionId = typeof lesionIdParam === 'string' && lesionIdParam ? lesionIdParam : null;
 
   const [loading, setLoading] = useState(true);
   const [fields, setFields] = useState<Field[]>(() => buildInitialFields('thyroid'));
@@ -436,6 +438,7 @@ export default function RecognizePage() {
                   recognizedData: JSON.stringify(data),
                   diseaseType,
                   images: imagesParam ?? stringifyReportImageAssetsParam(imageAssets),
+                  ...(lesionId ? { lesionId } : {}),
                 },
               });
             }}

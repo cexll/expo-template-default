@@ -29,9 +29,11 @@ function normalizeMimeType(value: unknown): string | null {
 }
 
 export default function UploadPage() {
-  const params = useLocalSearchParams<{ images?: string; diseaseType?: string }>();
+  const params = useLocalSearchParams<{ images?: string; diseaseType?: string; lesionId?: string }>();
   const [images, setImages] = useState<ReportImageAsset[]>(() => parseReportImageAssetsParam(params.images));
   const [diseaseType, setDiseaseType] = useState<DiseaseType | null>(() => parseDiseaseTypeParam(params.diseaseType));
+  const lesionIdParam = Array.isArray(params.lesionId) ? params.lesionId[0] : params.lesionId;
+  const lesionId = typeof lesionIdParam === 'string' && lesionIdParam ? lesionIdParam : null;
 
   useEffect(() => {
     if (!diseaseType) {
@@ -209,7 +211,11 @@ export default function UploadPage() {
           onPress={() => {
             router.push({
               pathname: '/record/recognize',
-              params: { images: stringifyReportImageAssetsParam(images), diseaseType },
+              params: {
+                images: stringifyReportImageAssetsParam(images),
+                diseaseType,
+                ...(lesionId ? { lesionId } : {}),
+              },
             });
           }}
         />
