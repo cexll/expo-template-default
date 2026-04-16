@@ -9,6 +9,8 @@ import { listLesionsByProfile } from '@/lib/db/queries/lesions';
 import { listActiveRemindersByProfile } from '@/lib/db/queries/reminders';
 import { listExaminationsByLesion } from '@/lib/db/queries/examinations';
 
+let mockInitialActiveProfileId = 'profile_1';
+
 jest.mock('expo-router', () => ({
   router: {
     push: jest.fn(),
@@ -47,7 +49,7 @@ jest.mock('@/providers/active-profile-provider', () => {
   const React = require('react');
   return {
     useActiveProfile: () => {
-      const [activeProfileId, setActiveProfileId] = React.useState('profile_1');
+      const [activeProfileId, setActiveProfileId] = React.useState(mockInitialActiveProfileId);
       return { activeProfileId, setActiveProfileId, bootstrapHomeDefaultProfile: () => {} };
     },
   };
@@ -82,6 +84,8 @@ describe('HomePage UI parity', () => {
   });
 
   beforeEach(() => {
+    mockInitialActiveProfileId = 'profile_1';
+
     listProfilesMock.mockResolvedValue([
       {
         id: 'profile_1',
@@ -332,6 +336,68 @@ describe('HomePage UI parity', () => {
 
     fireEvent.press(screen.getByText('添加第一个病灶记录'));
     expect(router.push).toHaveBeenCalledWith('/record/upload');
+  });
+
+  it('keeps the home shell top-aligned when a newly added profile returns to an empty state', async () => {
+    mockInitialActiveProfileId = 'profile_2';
+
+    listProfilesMock.mockResolvedValue([
+      { id: 'profile_1', nickname: '本人' } as any,
+      { id: 'profile_2', nickname: '妈妈' } as any,
+    ]);
+
+    listLesionsByProfileMock.mockImplementation(async (profileId) => {
+      if (profileId === 'profile_1') {
+        return [
+          {
+            id: 'lesion_1',
+            profile_id: 'profile_1',
+            disease_type: 'thyroid',
+            label: '左叶结节',
+            location: '左叶',
+            is_archived: 0,
+          } as any,
+        ];
+      }
+      return [];
+    });
+
+    listActiveRemindersByProfileMock.mockImplementation(async () => []);
+
+    renderWithQueryClient(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('暂无病灶记录')).toBeTruthy();
+    });
+
+    expect(screen.getByTestId('profile-switcher-scroll-view').props.contentContainerStyle).toEqual(
+      expect.objectContaining({
+        alignItems: 'flex-start',
+      })
+    );
+    expect(screen.getByTestId('profile-switcher-wrapper').props.style).toEqual(
+      expect.objectContaining({
+        height: 90,
+      })
+    );
+    expect(screen.getByTestId('profile-switcher-chip-profile_2')).toBeTruthy();
+    expect(screen.getByTestId('profile-switcher-chip-profile_2').props.style).toEqual(
+      expect.objectContaining({
+        alignSelf: 'flex-start',
+      })
+    );
+    expect(screen.getByTestId('home-scroll-view').props.contentContainerStyle).toEqual(
+      expect.objectContaining({
+        paddingBottom: 128,
+      })
+    );
+    expect(screen.getByTestId('home-empty-state').props.style).toEqual(
+      expect.objectContaining({
+        alignItems: 'center',
+        paddingTop: 24,
+        paddingBottom: 48,
+      })
+    );
   });
 });
 

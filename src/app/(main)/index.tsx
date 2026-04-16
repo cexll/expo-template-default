@@ -25,6 +25,14 @@ const DISEASE_LABELS = {
 const RADS_FALLBACK = '待补充分级';
 const SIZE_FALLBACK = '待补充';
 const BASELINE_FALLBACK = '—';
+const HOME_SCROLL_CONTENT_STYLE = {
+  paddingBottom: 128,
+};
+const HOME_EMPTY_STATE_STYLE = {
+  alignItems: 'center' as const,
+  paddingTop: 24,
+  paddingBottom: 48,
+};
 
 function formatLesionSize(sizeX: number | null, sizeY: number | null, sizeZ: number | null) {
   const values = [sizeX, sizeY, sizeZ].filter((value): value is number => value !== null);
@@ -344,7 +352,12 @@ export default function HomePage() {
         />
       )}
 
-      <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        testID="home-scroll-view"
+        className="flex-1 px-4"
+        contentContainerStyle={HOME_SCROLL_CONTENT_STYLE}
+        showsVerticalScrollIndicator={false}
+      >
         {alertInfo ? (
           <View
             className={`mt-2 flex-row items-center justify-between rounded-xl border px-4 py-3 ${
@@ -386,12 +399,12 @@ export default function HomePage() {
         ) : null}
 
         {profileItems.length === 0 ? (
-          <View className="flex-1 items-center justify-center py-20">
+          <View testID="home-empty-state" style={HOME_EMPTY_STATE_STYLE}>
             <Text className="mb-4 text-lg text-neutral-text">暂无档案</Text>
             <Button title="添加第一个病灶记录" onPress={() => router.push('/record/upload')} />
           </View>
         ) : groupedLesions.length === 0 ? (
-          <View className="flex-1 items-center justify-center py-20">
+          <View testID="home-empty-state" style={HOME_EMPTY_STATE_STYLE}>
             <Text className="mb-4 text-lg text-neutral-text">暂无病灶记录</Text>
             <Button title="添加第一个病灶记录" onPress={() => router.push('/record/upload')} />
           </View>
@@ -434,7 +447,6 @@ export default function HomePage() {
           </View>
         ) : null}
 
-        <View className="h-32" />
       </ScrollView>
 
       <Pressable
