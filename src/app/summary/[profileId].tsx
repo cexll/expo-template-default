@@ -5,6 +5,7 @@ import ViewShot from 'react-native-view-shot';
 import { ChangeBadge } from '@/components/ChangeBadge';
 import { ComparisonRow } from '@/components/ComparisonRow';
 import { PaywallSheet } from '@/components/PaywallSheet';
+import { SecondaryPageHeader } from '@/components/SecondaryPageHeader';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
@@ -371,8 +372,11 @@ export default function SummaryPage() {
   if (!id) {
     return (
       <SafeAreaView className="flex-1 bg-page-bg">
-        <View className="flex-1 items-center justify-center px-6">
-          <Text className="text-lg text-neutral-text">档案 ID 无效</Text>
+        <View className="flex-1 px-4">
+          <SecondaryPageHeader title="就诊摘要" fallbackHref="/(main)" />
+          <View className="flex-1 items-center justify-center px-6">
+            <Text className="text-lg text-neutral-text">档案 ID 无效</Text>
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -382,16 +386,22 @@ export default function SummaryPage() {
     if (profileQuery.isLoading || profileQuery.isFetching) {
       return (
         <SafeAreaView className="flex-1 bg-page-bg">
-          <View className="flex-1 items-center justify-center px-6">
-            <Text className="text-lg text-neutral-text">加载中…</Text>
+          <View className="flex-1 px-4">
+            <SecondaryPageHeader title="就诊摘要" fallbackHref="/(main)" />
+            <View className="flex-1 items-center justify-center px-6">
+              <Text className="text-lg text-neutral-text">加载中…</Text>
+            </View>
           </View>
         </SafeAreaView>
       );
     }
     return (
       <SafeAreaView className="flex-1 bg-page-bg">
-        <View className="flex-1 items-center justify-center px-6">
-          <Text className="text-lg text-neutral-text">未找到该档案</Text>
+        <View className="flex-1 px-4">
+          <SecondaryPageHeader title="就诊摘要" fallbackHref="/(main)" />
+          <View className="flex-1 items-center justify-center px-6">
+            <Text className="text-lg text-neutral-text">未找到该档案</Text>
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -400,11 +410,12 @@ export default function SummaryPage() {
   return (
     <SafeAreaView className="flex-1 bg-page-bg">
       <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
+        <SecondaryPageHeader title="就诊摘要" fallbackHref="/(main)" />
         <ViewShot
           ref={viewShotRef}
           options={{ format: 'png', quality: 1, result: Platform.OS === 'web' ? 'data-uri' : 'tmpfile' }}
         >
-          <Card className="mt-4 mb-4 overflow-hidden">
+          <Card className="mb-4 mt-4 overflow-hidden">
             <View className="absolute -right-6 -top-8 h-24 w-24 rounded-full bg-neutral-bg opacity-60" />
             <View className="absolute -left-10 bottom-0 h-20 w-20 rounded-full bg-stable-bg opacity-30" />
             <Text className="text-lg font-bold text-primary">{profile.nickname}的就诊摘要</Text>

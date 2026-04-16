@@ -14,6 +14,8 @@ import { useAuth } from '@/providers/auth-provider';
 
 jest.mock('expo-router', () => ({
   router: {
+    back: jest.fn(),
+    canGoBack: jest.fn(),
     push: jest.fn(),
     replace: jest.fn(),
   },
@@ -271,5 +273,31 @@ describe('subscription order flow', () => {
     await waitFor(() => {
       expect(screen.getByText(/年度会员/)).toBeTruthy();
     });
+  });
+
+  it('falls back to the subscription page from success when there is no history', async () => {
+    const expoRouter = require('expo-router') as {
+      router: { canGoBack: jest.Mock; replace: jest.Mock; back: jest.Mock };
+      useLocalSearchParams: jest.Mock;
+    };
+
+    expoRouter.router.canGoBack.mockReturnValue(false);
+    expoRouter.useLocalSearchParams.mockReturnValue({
+      order_id: 'ord_1',
+      plan: 'yearly',
+      provider: 'wechat',
+    });
+    apiMock.get.mockResolvedValue({ plan: 'free', is_active: false, expires_at: null });
+
+    renderWithQueryClient(<SubscriptionSuccessPage />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('返回上一层')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByLabelText('返回上一层'));
+
+    expect(expoRouter.router.replace).toHaveBeenCalledWith('/subscription');
+    expect(expoRouter.router.back).not.toHaveBeenCalled();
   });
 });

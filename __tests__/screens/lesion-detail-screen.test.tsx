@@ -4,11 +4,15 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import LesionDetailPage from '@/app/lesion/[id]';
 
 const mockUseLocalSearchParams = jest.fn();
+const mockRouterBack = jest.fn();
+const mockRouterCanGoBack = jest.fn();
 const mockRouterReplace = jest.fn();
 const mockRouterPush = jest.fn();
 
 jest.mock('expo-router', () => ({
   router: {
+    back: (...args: any[]) => mockRouterBack(...args),
+    canGoBack: (...args: any[]) => mockRouterCanGoBack(...args),
     replace: (...args: any[]) => mockRouterReplace(...args),
     push: (...args: any[]) => mockRouterPush(...args),
   },
@@ -37,6 +41,10 @@ jest.mock('@/hooks/useExaminations', () => ({
 }));
 
 describe('LesionDetailPage', () => {
+  beforeEach(() => {
+    mockRouterCanGoBack.mockReturnValue(true);
+  });
+
   afterEach(() => {
     jest.clearAllMocks();
   });
@@ -60,6 +68,7 @@ describe('LesionDetailPage', () => {
 
     render(<LesionDetailPage />);
 
+    expect(screen.getByLabelText('返回上一层')).toBeTruthy();
     expect(screen.getByText('甲状腺左叶结节')).toBeTruthy();
     expect(screen.getByText('暂无检查记录')).toBeTruthy();
     expect(screen.queryByText('检查记录')).toBeNull();

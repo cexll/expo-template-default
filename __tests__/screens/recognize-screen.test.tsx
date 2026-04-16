@@ -5,10 +5,16 @@ import RecognizePage from '@/app/record/recognize';
 
 const mockUseSubscriptionStatus = jest.fn();
 const mockUseLesion = jest.fn();
+const mockRouterBack = jest.fn();
+const mockRouterCanGoBack = jest.fn();
+const mockRouterReplace = jest.fn();
 
 jest.mock('expo-router', () => ({
   router: {
+    back: (...args: any[]) => mockRouterBack(...args),
+    canGoBack: (...args: any[]) => mockRouterCanGoBack(...args),
     push: jest.fn(),
+    replace: (...args: any[]) => mockRouterReplace(...args),
   },
   useLocalSearchParams: jest.fn(),
 }));
@@ -55,6 +61,7 @@ jest.mock('@/hooks/useLesions', () => ({
 
 describe('RecognizePage', () => {
   beforeEach(() => {
+    mockRouterCanGoBack.mockReturnValue(true);
     mockUseLesion.mockReturnValue({ data: null, isFetched: true, isLoading: false });
     const { useLocalSearchParams } = require('expo-router');
     (useLocalSearchParams as jest.Mock).mockReturnValue({});
@@ -494,5 +501,33 @@ describe('RecognizePage', () => {
     await waitFor(() => {
       expect(screen.getByText('4/10 已确认')).toBeTruthy();
     }, { timeout: 5000 });
+  });
+
+  it('falls back to upload when there is no history', () => {
+    const { useLocalSearchParams } = require('expo-router');
+
+    mockRouterCanGoBack.mockReturnValue(false);
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      images: JSON.stringify([{ uri: 'file:///a.png', mimeType: 'image/png' }]),
+      diseaseType: 'lung',
+      lesionId: 'lesion-1',
+    });
+
+    mockUseSubscriptionStatus.mockReturnValue({ data: { isActive: true }, isLoading: true });
+    mockUseLesion.mockReturnValue({ data: null, isFetched: false, isLoading: true });
+
+    render(<RecognizePage />);
+
+    fireEvent.press(screen.getByLabelText('返回上一层'));
+
+    expect(mockRouterReplace).toHaveBeenCalledWith({
+      pathname: '/record/upload',
+      params: {
+        images: JSON.stringify([{ uri: 'file:///a.png', mimeType: 'image/png' }]),
+        diseaseType: 'lung',
+        lesionId: 'lesion-1',
+      },
+    });
+    expect(mockRouterBack).not.toHaveBeenCalled();
   });
 });

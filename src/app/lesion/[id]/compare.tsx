@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
+import { SecondaryPageHeader } from '@/components/SecondaryPageHeader';
 import { useExaminations } from '@/hooks/useExaminations';
 import { useLesion } from '@/hooks/useLesions';
 import { useCreateReminder, useDeactivateReminder, useRemindersByLesion, useUpdateReminder } from '@/hooks/useReminders';
@@ -338,8 +339,11 @@ export default function ComparePage() {
   if (!lesionId) {
     return (
       <SafeAreaView className="flex-1 bg-page-bg">
-        <View className="flex-1 items-center justify-center px-6">
-          <Text className="text-lg text-neutral-text">病灶 ID 无效</Text>
+        <View className="flex-1 px-4">
+          <SecondaryPageHeader title="横向对比" fallbackHref="/(main)" />
+          <View className="flex-1 items-center justify-center px-6">
+            <Text className="text-lg text-neutral-text">病灶 ID 无效</Text>
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -348,10 +352,13 @@ export default function ComparePage() {
   if (!lesion) {
     return (
       <SafeAreaView className="flex-1 bg-page-bg">
-        <View className="flex-1 items-center justify-center px-6">
-          <Text className="text-lg text-neutral-text">未找到该病灶</Text>
-          <View className="mt-4 w-full">
-            <Button title="返回首页" onPress={() => router.replace('/(main)')} fullWidth />
+        <View className="flex-1 px-4">
+          <SecondaryPageHeader title="横向对比" fallbackHref="/(main)" />
+          <View className="flex-1 items-center justify-center px-6">
+            <Text className="text-lg text-neutral-text">未找到该病灶</Text>
+            <View className="mt-4 w-full">
+              <Button title="返回首页" onPress={() => router.replace('/(main)')} fullWidth />
+            </View>
           </View>
         </View>
       </SafeAreaView>
@@ -361,17 +368,20 @@ export default function ComparePage() {
   if (totalCount < 3) {
     return (
       <SafeAreaView className="flex-1 bg-page-bg">
-        <View className="flex-1 items-center justify-center px-6">
-          <Text className="text-lg text-neutral-text">记录不足，无法对比</Text>
-          <Text className="mt-2 text-xs text-neutral-text">至少需要3次检查记录才能生成横向对比。</Text>
-          <View className="mt-4 w-full">
-            <Button
-              title="新增记录"
-              onPress={() =>
-                router.push({ pathname: '/record/upload', params: { lesionId, diseaseType: lesion.disease_type } })
-              }
-              fullWidth
-            />
+        <View className="flex-1 px-4">
+          <SecondaryPageHeader title="横向对比" fallbackHref={`/lesion/${lesionId}`} />
+          <View className="flex-1 items-center justify-center px-6">
+            <Text className="text-lg text-neutral-text">记录不足，无法对比</Text>
+            <Text className="mt-2 text-xs text-neutral-text">至少需要3次检查记录才能生成横向对比。</Text>
+            <View className="mt-4 w-full">
+              <Button
+                title="新增记录"
+                onPress={() =>
+                  router.push({ pathname: '/record/upload', params: { lesionId, diseaseType: lesion.disease_type } })
+                }
+                fullWidth
+              />
+            </View>
           </View>
         </View>
       </SafeAreaView>
@@ -385,17 +395,17 @@ export default function ComparePage() {
   return (
     <SafeAreaView className="flex-1 bg-page-bg">
       <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-        <View className="mt-4 mb-4 flex-row items-center justify-between">
-          <Pressable onPress={() => router.push(`/lesion/${lesionId}`)} accessibilityLabel="返回病灶详情">
-            <Text className="text-sm text-neutral-text">← 档案</Text>
-          </Pressable>
-          <Text className="text-lg font-semibold text-primary">横向对比</Text>
-          <Pressable onPress={() => router.push(`/summary/${lesion.profile_id}`)} accessibilityLabel="打开就诊摘要">
-            <Text className="text-sm text-primary">就诊摘要</Text>
-          </Pressable>
-        </View>
+        <SecondaryPageHeader
+          title="横向对比"
+          fallbackHref={`/lesion/${lesionId}`}
+          rightSlot={
+            <Pressable onPress={() => router.push(`/summary/${lesion.profile_id}`)} accessibilityLabel="打开就诊摘要">
+              <Text className="text-sm text-primary">就诊摘要</Text>
+            </Pressable>
+          }
+        />
 
-        <Card className="mb-4">
+        <Card className="mb-4 mt-4">
           <Text className="text-base font-semibold text-primary">{lesion.label}</Text>
           <Text className="mt-1 text-xs text-neutral-text">
             {getDiseaseLabel(lesion.disease_type)}

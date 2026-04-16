@@ -82,6 +82,7 @@ describe('SummaryPage UI contract basics', () => {
 
     renderWithQueryClient(<SummaryPage />);
 
+    expect(screen.getByLabelText('返回上一层')).toBeTruthy();
     expect(screen.getByText('档案 ID 无效')).toBeTruthy();
   });
 

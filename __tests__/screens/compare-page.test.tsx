@@ -3,11 +3,15 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import ComparePage from '@/app/lesion/[id]/compare';
 
 const mockUseLocalSearchParams = jest.fn();
+const mockRouterBack = jest.fn();
+const mockRouterCanGoBack = jest.fn();
 const mockRouterReplace = jest.fn();
 const mockRouterPush = jest.fn();
 
 jest.mock('expo-router', () => ({
   router: {
+    back: (...args: any[]) => mockRouterBack(...args),
+    canGoBack: (...args: any[]) => mockRouterCanGoBack(...args),
     replace: (...args: any[]) => mockRouterReplace(...args),
     push: (...args: any[]) => mockRouterPush(...args),
   },
@@ -72,6 +76,10 @@ function buildExam(overrides: Partial<any>) {
 }
 
 describe('ComparePage', () => {
+  beforeEach(() => {
+    mockRouterCanGoBack.mockReturnValue(true);
+  });
+
   afterEach(() => {
     jest.clearAllMocks();
   });
@@ -326,5 +334,37 @@ describe('ComparePage', () => {
       await Promise.resolve();
     });
     expect(mockDeactivateReminderMutateAsync).toHaveBeenCalledWith('rem-1');
+  });
+
+  it('falls back to lesion detail when there is no history', () => {
+    mockRouterCanGoBack.mockReturnValue(false);
+    mockUseLocalSearchParams.mockReturnValue({ id: 'lesion-1' });
+    mockUseLesion.mockReturnValue({
+      data: {
+        id: 'lesion-1',
+        profile_id: 'profile-1',
+        disease_type: 'thyroid',
+        label: '左叶结节',
+        location: '左叶',
+        is_archived: 0,
+        created_at: '2026-04-13T00:00:00.000Z',
+        updated_at: '2026-04-13T00:00:00.000Z',
+      },
+    });
+    mockUseExaminations.mockReturnValue({
+      data: [
+        buildExam({ id: 'latest', exam_date: '2024-03-15', size_x: 8.3, tirads: '3' }),
+        buildExam({ id: 'prev', exam_date: '2023-09-10', size_x: 7.8, tirads: '3' }),
+        buildExam({ id: 'base', exam_date: '2023-03-05', size_x: 7.1, tirads: '3' }),
+      ],
+    });
+    mockUseRemindersByLesion.mockReturnValue({ data: [] });
+
+    render(<ComparePage />);
+
+    fireEvent.press(screen.getByLabelText('返回上一层'));
+
+    expect(mockRouterReplace).toHaveBeenCalledWith('/lesion/lesion-1');
+    expect(mockRouterBack).not.toHaveBeenCalled();
   });
 });

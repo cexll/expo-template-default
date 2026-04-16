@@ -4,6 +4,7 @@ import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { SecondaryPageHeader } from '@/components/SecondaryPageHeader';
 import { scoreLesionMatch } from '@/lib/db/matching';
 import type { Lesion } from '@/lib/db/types';
 import { listExaminationsByLesion } from '@/lib/db/queries/examinations';
@@ -126,6 +127,14 @@ export default function MatchPage() {
 
   const lockedLabel = lockedLesionForDisplay?.label ?? (lockedLesionId || '');
   const selectedLabel = createNew ? '新建病灶' : selectionLocked ? lockedLabel : candidateLesions.find((l) => l.id === effectiveSelected)?.label || '';
+  const recognizeFallback = {
+    pathname: '/record/recognize' as const,
+    params: {
+      images: imagesParam,
+      diseaseType: diseaseType ?? undefined,
+      ...(lockedLesionId ? { lesionId: lockedLesionId } : {}),
+    },
+  };
 
   const save = useCallback(async () => {
     if (!activeProfileId) {
@@ -199,8 +208,12 @@ export default function MatchPage() {
   return (
     <SafeAreaView className="flex-1 bg-page-bg">
       <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-        <Text className="text-2xl font-bold text-primary mt-4 mb-2">匹配病灶</Text>
-        <Text className="text-sm text-neutral-text mb-6">选择此次检查记录归属的病灶</Text>
+        <SecondaryPageHeader
+          title="匹配病灶"
+          fallbackHref={recognizeFallback}
+          rightSlot={<Text className="text-xs font-medium text-neutral-text">步骤 3/3</Text>}
+        />
+        <Text className="mb-6 mt-4 text-sm text-neutral-text">选择此次检查记录归属的病灶</Text>
 
         {selectionLocked ? (
           <Card className="mb-3">

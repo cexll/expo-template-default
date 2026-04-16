@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { SecondaryPageHeader } from '@/components/SecondaryPageHeader';
 import { api } from '@/lib/api';
 import { SUBSCRIPTION_COMPARISON_ROWS } from '@/lib/subscription/catalog';
 import { savePendingSubscriptionOrderContext } from '@/lib/subscription/order-context';
@@ -88,8 +89,8 @@ export default function SubscriptionPage() {
   return (
     <SafeAreaView className="flex-1 bg-page-bg">
       <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-        <Text className="mt-4 text-2xl font-bold text-primary">升级会员</Text>
-        <Text className="mt-1 mb-6 text-sm text-neutral-text">解锁完整功能，无限管理你的健康档案</Text>
+        <SecondaryPageHeader title="升级会员" fallbackHref="/settings" />
+        <Text className="mb-6 mt-4 text-sm text-neutral-text">解锁完整功能，无限管理你的健康档案</Text>
 
         <View className="mb-6 flex-row rounded-xl bg-nav-bg p-1">
           <Pressable

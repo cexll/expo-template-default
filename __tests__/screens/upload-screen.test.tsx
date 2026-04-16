@@ -3,13 +3,19 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 
 import UploadPage from '@/app/record/upload';
 
+const mockRouterBack = jest.fn();
+const mockRouterCanGoBack = jest.fn();
 const mockRouterPush = jest.fn();
+const mockRouterReplace = jest.fn();
 const mockLaunchImageLibraryAsync = jest.fn();
 const mockUseLesion = jest.fn();
 
 jest.mock('expo-router', () => ({
   router: {
+    back: (...args: any[]) => mockRouterBack(...args),
+    canGoBack: (...args: any[]) => mockRouterCanGoBack(...args),
     push: (...args: any[]) => mockRouterPush(...args),
+    replace: (...args: any[]) => mockRouterReplace(...args),
   },
   useLocalSearchParams: jest.fn(() => ({})),
 }));
@@ -25,6 +31,7 @@ jest.mock('@/hooks/useLesions', () => ({
 
 describe('UploadPage', () => {
   beforeEach(() => {
+    mockRouterCanGoBack.mockReturnValue(true);
     mockUseLesion.mockReturnValue({ data: null });
     const { useLocalSearchParams } = require('expo-router');
     (useLocalSearchParams as jest.Mock).mockReturnValue({});
@@ -143,5 +150,16 @@ describe('UploadPage', () => {
       { uri: 'file:///b.png', mimeType: null },
       { uri: 'file:///a.png', mimeType: null },
     ]);
+  });
+
+  it('shows a back affordance and falls back to home when opened without history', () => {
+    mockRouterCanGoBack.mockReturnValue(false);
+
+    render(<UploadPage />);
+
+    fireEvent.press(screen.getByLabelText('返回上一层'));
+
+    expect(mockRouterReplace).toHaveBeenCalledWith('/(main)');
+    expect(mockRouterBack).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
+import { SecondaryPageHeader } from '@/components/SecondaryPageHeader';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
 import { useLesion } from '@/hooks/useLesions';
@@ -141,8 +142,12 @@ export default function UploadPage() {
   return (
     <SafeAreaView className="flex-1 bg-page-bg">
       <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-        <Text className="text-2xl font-bold text-primary mt-4 mb-2">上传报告</Text>
-        <Text className="text-sm text-neutral-text mb-6">拍照或选择超声检查报告图片</Text>
+        <SecondaryPageHeader
+          title="上传报告"
+          fallbackHref={lesionId ? `/lesion/${lesionId}` : '/(main)'}
+          rightSlot={<Text className="text-xs font-medium text-neutral-text">步骤 1/3</Text>}
+        />
+        <Text className="mb-6 mt-4 text-sm text-neutral-text">拍照或选择超声检查报告图片</Text>
 
         <View className="flex-row flex-wrap gap-3 mb-6">
           {images.map((img, index) => (

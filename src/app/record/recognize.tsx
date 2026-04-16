@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Tag } from '@/components/ui/Tag';
 import { PaywallSheet } from '@/components/PaywallSheet';
+import { SecondaryPageHeader } from '@/components/SecondaryPageHeader';
 import { canUseFeature, useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
 import { useLesion } from '@/hooks/useLesions';
 import { ApiError, api } from '@/lib/api';
@@ -332,6 +333,14 @@ export default function RecognizePage() {
   const totalCount = fields.length;
   const requiredFilled = fields.filter((field) => field.required).every(isValidFieldValue);
   const paywallActive = quotaBlocked || paywallVisible;
+  const uploadFallback = {
+    pathname: '/record/upload' as const,
+    params: {
+      images: imagesParam ?? stringifyReportImageAssetsParam(imageAssets),
+      diseaseType: requestDiseaseType,
+      ...(lesionId ? { lesionId } : {}),
+    },
+  };
 
   const updateField = useCallback((key: string, value: string) => {
     setFields((previousFields) =>
@@ -344,20 +353,34 @@ export default function RecognizePage() {
 
   if (lesionContextPending) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-page-bg">
-        <ActivityIndicator size="large" color="#3D3528" />
-        <Text className="mt-4 text-primary">加载病灶信息...</Text>
-        <Text className="mt-2 text-sm text-neutral-text">正在确认病灶上下文</Text>
+      <SafeAreaView className="flex-1 bg-page-bg px-4">
+        <SecondaryPageHeader
+          title="AI识别核对"
+          fallbackHref={uploadFallback}
+          rightSlot={<Text className="text-xs font-medium text-neutral-text">步骤 2/3</Text>}
+        />
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color="#3D3528" />
+          <Text className="mt-4 text-primary">加载病灶信息...</Text>
+          <Text className="mt-2 text-sm text-neutral-text">正在确认病灶上下文</Text>
+        </View>
       </SafeAreaView>
     );
   }
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-page-bg">
-        <ActivityIndicator size="large" color="#3D3528" />
-        <Text className="mt-4 text-primary">AI识别中...</Text>
-        <Text className="mt-2 text-sm text-neutral-text">正在分析超声报告</Text>
+      <SafeAreaView className="flex-1 bg-page-bg px-4">
+        <SecondaryPageHeader
+          title="AI识别核对"
+          fallbackHref={uploadFallback}
+          rightSlot={<Text className="text-xs font-medium text-neutral-text">步骤 2/3</Text>}
+        />
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color="#3D3528" />
+          <Text className="mt-4 text-primary">AI识别中...</Text>
+          <Text className="mt-2 text-sm text-neutral-text">正在分析超声报告</Text>
+        </View>
       </SafeAreaView>
     );
   }
@@ -365,10 +388,14 @@ export default function RecognizePage() {
   return (
     <SafeAreaView className="flex-1 bg-page-bg">
       <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-        <Text className="mb-2 mt-4 text-2xl font-bold text-primary">AI识别核对</Text>
+        <SecondaryPageHeader
+          title="AI识别核对"
+          fallbackHref={uploadFallback}
+          rightSlot={<Text className="text-xs font-medium text-neutral-text">步骤 2/3</Text>}
+        />
 
         {imageUris.length > 0 ? (
-          <View className="mb-4">
+          <View className="mb-4 mt-4">
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="-mx-4 px-4">
               {imageUris.map((uri, idx) => (
                 <View key={`${uri}-${idx}`} className="mr-3">

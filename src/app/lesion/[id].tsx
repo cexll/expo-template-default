@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { SecondaryPageHeader } from '@/components/SecondaryPageHeader';
 import { TimelineNode } from '@/components/TimelineNode';
 import { listReportImagesByLesion } from '@/lib/db/queries/report-images';
 import { useExaminations } from '@/hooks/useExaminations';
@@ -102,8 +103,11 @@ export default function LesionDetailPage() {
   if (!lesionId) {
     return (
       <SafeAreaView className="flex-1 bg-page-bg">
-        <View className="flex-1 items-center justify-center px-6">
-          <Text className="text-lg text-neutral-text">病灶 ID 无效</Text>
+        <View className="flex-1 px-4">
+          <SecondaryPageHeader title="病灶详情" fallbackHref="/(main)" />
+          <View className="flex-1 items-center justify-center px-6">
+            <Text className="text-lg text-neutral-text">病灶 ID 无效</Text>
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -112,10 +116,13 @@ export default function LesionDetailPage() {
   if (!lesion) {
     return (
       <SafeAreaView className="flex-1 bg-page-bg">
-        <View className="flex-1 items-center justify-center px-6">
-          <Text className="text-lg text-neutral-text">未找到该病灶</Text>
-          <View className="mt-4 w-full">
-            <Button title="返回首页" onPress={() => router.replace('/(main)')} fullWidth />
+        <View className="flex-1 px-4">
+          <SecondaryPageHeader title="病灶详情" fallbackHref="/(main)" />
+          <View className="flex-1 items-center justify-center px-6">
+            <Text className="text-lg text-neutral-text">未找到该病灶</Text>
+            <View className="mt-4 w-full">
+              <Button title="返回首页" onPress={() => router.replace('/(main)')} fullWidth />
+            </View>
           </View>
         </View>
       </SafeAreaView>
@@ -126,6 +133,9 @@ export default function LesionDetailPage() {
     return (
       <SafeAreaView className="flex-1 bg-page-bg">
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+          <View className="px-4">
+            <SecondaryPageHeader title="病灶详情" fallbackHref="/(main)" />
+          </View>
           <Card className="mx-4 mt-4">
             <Text className="mb-1 text-lg font-bold text-primary">{lesion.label}</Text>
             <Text className="text-sm text-neutral-text">暂无检查记录</Text>
@@ -174,6 +184,9 @@ export default function LesionDetailPage() {
   return (
     <SafeAreaView className="flex-1 bg-page-bg">
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        <View className="px-4">
+          <SecondaryPageHeader title="病灶详情" fallbackHref="/(main)" />
+        </View>
         <Card className="mx-4 mt-4">
           <Text className="mb-1 text-lg font-bold text-primary">{lesion.label}</Text>
           <Text className="text-xs text-neutral-text">

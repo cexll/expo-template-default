@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { router } from 'expo-router';
 
+import { SecondaryPageHeader } from '@/components/SecondaryPageHeader';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
@@ -77,9 +78,9 @@ export default function CreateProfilePage() {
 
   return (
     <SafeAreaView className="flex-1 bg-page-bg">
-      <View className="flex-1 px-6 pt-12">
-        <Text className="mb-2 text-2xl font-bold text-primary">添加档案人</Text>
-        <Text className="mb-8 text-base text-neutral-text">为家人建立档案，独立管理病灶记录</Text>
+      <View className="flex-1 px-6 pt-4">
+        <SecondaryPageHeader title="添加档案人" fallbackHref="/(main)" />
+        <Text className="mb-8 mt-4 text-base text-neutral-text">为家人建立档案，独立管理病灶记录</Text>
 
         <Input label="昵称" value={nickname} onChangeText={setNickname} placeholder="例如：妈妈、爸爸" />
 

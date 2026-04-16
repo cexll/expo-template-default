@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { SecondaryPageHeader } from '@/components/SecondaryPageHeader';
 import { formatSubscriptionPlan, useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
 import { PREMIUM_UNLOCKED_RIGHTS, formatPaymentAmount } from '@/lib/subscription/catalog';
 import {
@@ -55,57 +56,61 @@ export default function PaymentSuccessPage() {
       : '请返回上一页重新下单';
 
   return (
-    <SafeAreaView className="flex-1 items-center justify-center bg-page-bg px-6">
-      <Text className="mb-4 text-5xl">{isCurrentOrderActive ? '🎉' : hasOrderId ? '⏳' : '⚠️'}</Text>
-      <Text className="mb-2 text-2xl font-bold text-primary">{title}</Text>
-      <Text className="mb-8 text-sm text-neutral-text">{subtitle}</Text>
+    <SafeAreaView className="flex-1 bg-page-bg px-6">
+      <SecondaryPageHeader title="支付结果" fallbackHref="/subscription" />
 
-      <Card className="mb-8 w-full">
-        {orderId ? (
-          <View className="flex-row justify-between py-2">
-            <Text className="text-sm text-neutral-text">订单号</Text>
-            <Text className="font-mono text-sm text-primary">{orderId}</Text>
-          </View>
-        ) : null}
-        <View className="flex-row justify-between py-2">
-          <Text className="text-sm text-neutral-text">方案</Text>
-          <Text className="text-sm font-semibold text-primary">{planLabel}</Text>
-        </View>
-        <View className="flex-row justify-between py-2">
-          <Text className="text-sm text-neutral-text">支付方式</Text>
-          <Text className="text-sm text-primary">{formatProvider(requestedProvider ?? null)}</Text>
-        </View>
-        <View className="flex-row justify-between py-2">
-          <Text className="font-mono text-sm text-neutral-text">金额</Text>
-          <Text className="font-mono text-sm text-primary">{amountLabel}</Text>
-        </View>
-        <View className="flex-row justify-between py-2">
-          <Text className="text-sm text-neutral-text">到期时间</Text>
-          <Text className="font-mono text-sm text-primary">
-            {isCurrentOrderActive && status?.expiresAt ? status.expiresAt : '支付完成后更新'}
-          </Text>
-        </View>
-      </Card>
+      <View className="flex-1 items-center justify-center">
+        <Text className="mb-4 text-5xl">{isCurrentOrderActive ? '🎉' : hasOrderId ? '⏳' : '⚠️'}</Text>
+        <Text className="mb-2 text-2xl font-bold text-primary">{title}</Text>
+        <Text className="mb-8 text-sm text-neutral-text">{subtitle}</Text>
 
-      {isCurrentOrderActive ? (
         <Card className="mb-8 w-full">
-          <Text className="text-sm font-semibold text-primary">已解锁会员权益</Text>
-          <View className="mt-4 gap-3">
-            {PREMIUM_UNLOCKED_RIGHTS.map((item) => (
-              <View key={item.label} className="flex-row items-center justify-between">
-                <Text className="text-sm text-neutral-text">{item.label}</Text>
-                <Text className={`text-sm font-semibold ${item.tone === 'positive' ? 'text-stable-text' : 'text-primary'}`}>
-                  {item.value}
-                  {item.tone === 'positive' ? ' ✓' : ''}
-                </Text>
-              </View>
-            ))}
+          {orderId ? (
+            <View className="flex-row justify-between py-2">
+              <Text className="text-sm text-neutral-text">订单号</Text>
+              <Text className="font-mono text-sm text-primary">{orderId}</Text>
+            </View>
+          ) : null}
+          <View className="flex-row justify-between py-2">
+            <Text className="text-sm text-neutral-text">方案</Text>
+            <Text className="text-sm font-semibold text-primary">{planLabel}</Text>
+          </View>
+          <View className="flex-row justify-between py-2">
+            <Text className="text-sm text-neutral-text">支付方式</Text>
+            <Text className="text-sm text-primary">{formatProvider(requestedProvider ?? null)}</Text>
+          </View>
+          <View className="flex-row justify-between py-2">
+            <Text className="font-mono text-sm text-neutral-text">金额</Text>
+            <Text className="font-mono text-sm text-primary">{amountLabel}</Text>
+          </View>
+          <View className="flex-row justify-between py-2">
+            <Text className="text-sm text-neutral-text">到期时间</Text>
+            <Text className="font-mono text-sm text-primary">
+              {isCurrentOrderActive && status?.expiresAt ? status.expiresAt : '支付完成后更新'}
+            </Text>
           </View>
         </Card>
-      ) : null}
 
-      {error instanceof Error ? <Text className="mb-3 text-xs text-neutral-text">订阅状态获取失败：{error.message}</Text> : null}
-      <Button title="开始使用" fullWidth onPress={() => router.replace('/(main)')} />
+        {isCurrentOrderActive ? (
+          <Card className="mb-8 w-full">
+            <Text className="text-sm font-semibold text-primary">已解锁会员权益</Text>
+            <View className="mt-4 gap-3">
+              {PREMIUM_UNLOCKED_RIGHTS.map((item) => (
+                <View key={item.label} className="flex-row items-center justify-between">
+                  <Text className="text-sm text-neutral-text">{item.label}</Text>
+                  <Text className={`text-sm font-semibold ${item.tone === 'positive' ? 'text-stable-text' : 'text-primary'}`}>
+                    {item.value}
+                    {item.tone === 'positive' ? ' ✓' : ''}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </Card>
+        ) : null}
+
+        {error instanceof Error ? <Text className="mb-3 text-xs text-neutral-text">订阅状态获取失败：{error.message}</Text> : null}
+        <Button title="开始使用" fullWidth onPress={() => router.replace('/(main)')} />
+      </View>
     </SafeAreaView>
   );
 }
