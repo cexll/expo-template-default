@@ -1,5 +1,5 @@
 jest.mock('react-native-css', () => {
-  const React = require('react');
+  const React = jest.requireActual('react');
 
   return {
     useCssElement(Component: React.ComponentType<any>, props: Record<string, unknown>) {
@@ -38,6 +38,5 @@ if (!globalThis.localStorage) {
     }
   }
 
-  // eslint-disable-next-line no-global-assign
   (globalThis as any).localStorage = new LocalStorageMock();
 }

@@ -56,7 +56,7 @@ function clearStoredActiveProfileId() {
 export function ActiveProfileProvider({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const profilesQuery = useProfiles({ enabled: isAuthenticated && !authLoading });
-  const profiles = profilesQuery.data ?? [];
+  const profiles = profilesQuery.data;
 
   const [activeProfileId, setActiveProfileIdState] = useState('');
   const [hydrated, setHydrated] = useState(false);
@@ -86,7 +86,9 @@ export function ActiveProfileProvider({ children }: { children: React.ReactNode 
     // Avoid clobbering a persisted active selection while profiles are still loading.
     // Once the profiles query is fetched, we can safely validate/repair the active id.
     if (!profilesQuery.isFetched) return;
-    if (profiles.length === 0) {
+    const profileList = profiles ?? [];
+
+    if (profileList.length === 0) {
       if (activeProfileId) {
         setActiveProfileIdState('');
         clearStoredActiveProfileId();
@@ -94,10 +96,10 @@ export function ActiveProfileProvider({ children }: { children: React.ReactNode 
       return;
     }
 
-    const hasActive = activeProfileId && profiles.some((profile) => profile.id === activeProfileId);
+    const hasActive = activeProfileId && profileList.some((profile) => profile.id === activeProfileId);
     if (hasActive) return;
 
-    const fallbackId = profiles[0].id;
+    const fallbackId = profileList[0].id;
     setActiveProfileIdState(fallbackId);
     persistActiveProfileId(fallbackId);
     setStoredActiveProfileId(fallbackId);

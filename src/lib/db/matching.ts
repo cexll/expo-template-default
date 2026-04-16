@@ -9,12 +9,12 @@ export interface MatchScore {
 export function scoreLesionMatch(
   recognizedLocation: string,
   recognizedSizeX: number | null,
-  existingLesions: Array<{
+  existingLesions: {
     id: string;
     label: string;
     location: string;
     latestSizeX: number | null;
-  }>
+  }[]
 ): MatchScore[] {
   return existingLesions
     .map((lesion) => {

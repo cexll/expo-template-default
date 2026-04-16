@@ -19,4 +19,12 @@ module.exports = defineConfig([
       '__tests__/screens/me-screen.test.tsx',
     ],
   },
+  {
+    files: ['__tests__/**/*.{ts,tsx}', 'jest.setup.ts'],
+    rules: {
+      // Jest-heavy tests intentionally use runtime module loading / mock ordering.
+      '@typescript-eslint/no-require-imports': 'off',
+      'import/first': 'off',
+    },
+  },
 ]);

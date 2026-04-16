@@ -44,7 +44,6 @@ jest.mock('@/lib/db/queries/examinations', () => ({
 }));
 
 jest.mock('@/providers/active-profile-provider', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const React = require('react');
   return {
     useActiveProfile: () => {
