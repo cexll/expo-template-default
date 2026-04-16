@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { api, ApiError, AuthError } from '@/lib/api';
 import { getAccessToken } from '@/lib/auth/token-storage';
 import { listActiveReminderSyncItems } from '@/lib/db/queries/reminders';
@@ -29,7 +30,7 @@ export async function ensureWebNotificationPermission(): Promise<WebNotification
 
 export async function syncRemindersToBackend(): Promise<ReminderSyncResult> {
   const token = await getAccessToken();
-  if (!token) {
+  if (Platform.OS !== 'web' && !token) {
     return { ok: false, error: '未登录，无法同步提醒' };
   }
 
