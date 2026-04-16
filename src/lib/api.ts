@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { resolveLoopbackApiBaseUrl } from '@/config/app';
 import {
   blockWebSessionBootstrap,
   clearTokens,
@@ -8,7 +9,7 @@ import {
   saveTokens,
 } from './auth/token-storage';
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:18000';
+const API_BASE = resolveLoopbackApiBaseUrl(process.env.EXPO_PUBLIC_API_URL, 'http://localhost:18000');
 const IS_WEB = Platform.OS === 'web';
 
 let isRefreshing = false;
