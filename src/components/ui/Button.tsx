@@ -1,4 +1,4 @@
-import { Pressable, Text, type PressableProps } from 'react-native';
+import { Pressable, Text, type PressableProps } from '@/tw';
 
 type ButtonProps = PressableProps & {
   title: string;

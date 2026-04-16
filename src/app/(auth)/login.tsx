@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Modal } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { api } from '@/lib/api';
 import { useAuth } from '@/providers/auth-provider';
+import { Pressable, SafeAreaView, Text, View } from '@/tw';
 
 const PHONE_PATTERN = /^1[3-9]\d{9}$/;
 
