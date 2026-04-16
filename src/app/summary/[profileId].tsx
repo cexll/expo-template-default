@@ -1,9 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Platform, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import ViewShot from 'react-native-view-shot';
-import * as Sharing from 'expo-sharing';
 import { ChangeBadge } from '@/components/ChangeBadge';
 import { ComparisonRow } from '@/components/ComparisonRow';
 import { PaywallSheet } from '@/components/PaywallSheet';
@@ -17,6 +16,8 @@ import { useActiveReminders } from '@/hooks/useReminders';
 import { canUseFeature, subscriptionKeys, useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
 import type { Examination, Lesion } from '@/lib/db/types';
 import { bumpLocalSummaryExportUsed, formatLocalMonth } from '@/lib/subscription/local-quota';
+import { exportSummaryImage } from '@/lib/summary/export-image';
+import { renderSummaryExportImage } from '@/lib/summary/render-export-image';
 import { useAuth } from '@/providers/auth-provider';
 
 function formatSize(sizeX: number | null, sizeY: number | null, sizeZ: number | null) {
@@ -128,6 +129,10 @@ function getRemainingDays(nextExamDate: string | null | undefined) {
   return Math.ceil((target.getTime() - today.getTime()) / 86400000);
 }
 
+function formatChangeBadgeValue(change: ReturnType<typeof calcChange>) {
+  return `${formatSignedDiff(change.diff)}mm (${change.pct > 0 ? '+' : ''}${change.pct}%)`;
+}
+
 export default function SummaryPage() {
   const { profileId } = useLocalSearchParams<{ profileId: string }>();
   const id = typeof profileId === 'string' ? profileId : '';
@@ -148,6 +153,7 @@ export default function SummaryPage() {
   const { data: subscriptionStatus, isLoading: subscriptionLoading } = useSubscriptionStatus(accountKey);
 
   const activeLesions = useMemo(() => lesions.filter((lesion) => lesion.is_archived === 0), [lesions]);
+  const age = profile ? new Date().getFullYear() - profile.birth_year : 0;
 
   const examinations = useQueries({
     queries: activeLesions.map((lesion) => ({
@@ -289,21 +295,63 @@ export default function SummaryPage() {
     setExportError('');
     setExporting(true);
     try {
-      const available = await Sharing.isAvailableAsync();
-      if (!available) {
-        throw new Error('当前设备不支持分享');
-      }
-
-      const uri = await viewShotRef.current?.capture?.();
+      const uri =
+        Platform.OS === 'web'
+          ? renderSummaryExportImage({
+              profileId: id,
+              nickname: profile.nickname,
+              genderLabel: profile.gender === 'female' ? '女' : '男',
+              ageLabel: `${age}岁`,
+              lesionCount: lesionBlocks.length,
+              totalExamCount,
+              needsAttention,
+              sections: (['thyroid', 'breast', 'lung'] as const)
+                .map((disease) => ({
+                  title: getDiseaseLabel(disease),
+                  cards: lesionBlocks
+                    .filter((lesion) => lesion.diseaseType === disease)
+                    .map((lesion) => ({
+                      label: lesion.label,
+                      diseaseLabel: lesion.diseaseLabel,
+                      location: lesion.location,
+                      latestSize: lesion.latestSize,
+                      radsGrade: lesion.radsGrade,
+                      examCount: lesion.examCount,
+                      vsPrevious: lesion.vsPrevious
+                        ? {
+                            label: '较上次',
+                            value: formatChangeBadgeValue(lesion.vsPrevious),
+                          }
+                        : null,
+                      vsBaseline: lesion.vsBaseline
+                        ? {
+                            label: '较基线',
+                            value: formatChangeBadgeValue(lesion.vsBaseline),
+                          }
+                        : null,
+                      qualitativeRows: lesion.displayRows.map((row) => {
+                        const values = row.values.filter(Boolean).join(' → ');
+                        return `${row.label}：${values || '—'}`;
+                      }),
+                      reminderText: lesion.reminder
+                        ? `建议复查 ${lesion.reminder.next_exam_date}${
+                            typeof lesion.remainingDays === 'number'
+                              ? lesion.remainingDays < 0
+                                ? ` · 已逾期${Math.abs(lesion.remainingDays)}天`
+                                : ` · 还有${lesion.remainingDays}天`
+                              : ''
+                          }`
+                        : null,
+                    })),
+                }))
+                .filter((section) => section.cards.length > 0),
+            })
+          : await viewShotRef.current?.capture?.();
       if (!uri || typeof uri !== 'string') {
         throw new Error('生成图片失败');
       }
 
-      await Sharing.shareAsync(uri, {
-        mimeType: 'image/png',
-        dialogTitle: `${profile.nickname}的就诊摘要`,
-        UTI: 'public.png',
-      });
+      await exportSummaryImage({ uri, nickname: profile.nickname });
 
       if (!subscriptionStatus.isActive) {
         const localUsed = bumpLocalSummaryExportUsed(formatLocalMonth(), 1, accountKey);
@@ -318,7 +366,7 @@ export default function SummaryPage() {
     } finally {
       setExporting(false);
     }
-  }, [accountKey, profile, queryClient, subscriptionLoading, subscriptionStatus]);
+  }, [accountKey, age, id, lesionBlocks, needsAttention, profile, queryClient, subscriptionLoading, subscriptionStatus, totalExamCount]);
 
   if (!id) {
     return (
@@ -349,12 +397,13 @@ export default function SummaryPage() {
     );
   }
 
-  const age = new Date().getFullYear() - profile.birth_year;
-
   return (
     <SafeAreaView className="flex-1 bg-page-bg">
       <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-        <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1, result: 'tmpfile' }}>
+        <ViewShot
+          ref={viewShotRef}
+          options={{ format: 'png', quality: 1, result: Platform.OS === 'web' ? 'data-uri' : 'tmpfile' }}
+        >
           <Card className="mt-4 mb-4 overflow-hidden">
             <View className="absolute -right-6 -top-8 h-24 w-24 rounded-full bg-neutral-bg opacity-60" />
             <View className="absolute -left-10 bottom-0 h-20 w-20 rounded-full bg-stable-bg opacity-30" />
