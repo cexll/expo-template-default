@@ -1,6 +1,4 @@
 import { useMemo, type ReactNode } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -8,6 +6,7 @@ import { useAuth } from '@/providers/auth-provider';
 import { formatSubscriptionPlan, useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
 import { useProfiles } from '@/hooks/useProfiles';
 import Constants from 'expo-constants';
+import { Pressable, SafeAreaView, ScrollView, Text, View } from '@/tw';
 
 function SettingsRow({
   icon,

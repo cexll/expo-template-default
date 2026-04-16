@@ -1,4 +1,4 @@
-import { View, Text, Pressable } from 'react-native';
+import { Pressable, Text, View } from '@/tw';
 import { Card } from './ui/Card';
 import { Badge } from './ui/Badge';
 

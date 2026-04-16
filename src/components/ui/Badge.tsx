@@ -1,4 +1,4 @@
-import { View, Text } from 'react-native';
+import { Text, View } from '@/tw';
 
 type BadgeVariant = 'increase' | 'new' | 'stable' | 'neutral';
 

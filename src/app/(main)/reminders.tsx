@@ -1,6 +1,4 @@
 import { useCallback, useMemo, useState } from 'react';
-import { ScrollView, Text, View, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
 import { Badge } from '@/components/ui/Badge';
@@ -15,6 +13,7 @@ import { parseStrictIsoCalendarDate } from '@/lib/iso-calendar-date';
 import { deriveAutoReminder } from '@/lib/reminder-calculator';
 import { applyReminderSideEffects } from '@/lib/reminder-side-effects';
 import { useActiveProfile } from '@/providers/active-profile-provider';
+import { Pressable, SafeAreaView, ScrollView, Text, View } from '@/tw';
 
 function getStatusVariant(daysUntil: number): 'new' | 'increase' | 'stable' {
   if (daysUntil < 0) return 'new';

@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, Text, View, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, usePathname } from 'expo-router';
 import { useQueries } from '@tanstack/react-query';
 
@@ -16,6 +14,7 @@ import { useProfiles } from '@/hooks/useProfiles';
 import { useActiveReminders } from '@/hooks/useReminders';
 import { useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
 import { useActiveProfile } from '@/providers/active-profile-provider';
+import { Pressable, SafeAreaView, ScrollView, Text, View } from '@/tw';
 
 const DISEASE_LABELS = {
   thyroid: '甲状腺',

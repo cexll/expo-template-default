@@ -1,4 +1,4 @@
-import { ScrollView, Pressable, View, Text } from 'react-native';
+import { Pressable, ScrollView, Text, View } from '@/tw';
 
 type ProfileItem = {
   id: string;

@@ -1,4 +1,4 @@
-import { View, type ViewProps } from 'react-native';
+import { View, type ViewProps } from '@/tw';
 
 export function Card({ children, className, ...props }: ViewProps) {
   return (
