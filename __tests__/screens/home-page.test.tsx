@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import HomePage from '@/app/(main)/index';
@@ -79,7 +80,14 @@ function isoDaysFromNow(days: number) {
 }
 
 describe('HomePage UI parity', () => {
+  const originalPlatformOsValue = Platform.OS;
+
   afterEach(() => {
+    Object.defineProperty(Platform, 'OS', {
+      configurable: true,
+      writable: true,
+      value: originalPlatformOsValue,
+    });
     jest.clearAllMocks();
   });
 
@@ -338,7 +346,13 @@ describe('HomePage UI parity', () => {
     expect(router.push).toHaveBeenCalledWith('/record/upload');
   });
 
-  it('keeps the home shell top-aligned when a newly added profile returns to an empty state', async () => {
+  it('keeps the web home shell top-aligned when a newly added profile returns to an empty state', async () => {
+    Object.defineProperty(Platform, 'OS', {
+      configurable: true,
+      writable: true,
+      value: 'web',
+    });
+
     mockInitialActiveProfileId = 'profile_2';
 
     listProfilesMock.mockResolvedValue([
@@ -370,18 +384,22 @@ describe('HomePage UI parity', () => {
       expect(screen.getByText('暂无病灶记录')).toBeTruthy();
     });
 
-    expect(screen.getByTestId('profile-switcher-scroll-view').props.contentContainerStyle).toEqual(
+    const profileSwitcherScrollView = screen.getByTestId('profile-switcher-scroll-view');
+    expect(profileSwitcherScrollView.props.contentContainerStyle).toBeUndefined();
+    expect(StyleSheet.flatten(profileSwitcherScrollView.props.style)).toEqual(
       expect.objectContaining({
-        alignItems: 'flex-start',
+        overflowX: 'auto',
+        overflowY: 'hidden',
       })
     );
-    expect(screen.getByTestId('profile-switcher-wrapper').props.style).toEqual(
+    expect(StyleSheet.flatten(screen.getByTestId('profile-switcher-wrapper').props.style)).toEqual(
       expect.objectContaining({
         height: 90,
       })
     );
+    expect(screen.getByTestId('profile-switcher-add')).toBeTruthy();
     expect(screen.getByTestId('profile-switcher-chip-profile_2')).toBeTruthy();
-    expect(screen.getByTestId('profile-switcher-chip-profile_2').props.style).toEqual(
+    expect(StyleSheet.flatten(screen.getByTestId('profile-switcher-chip-profile_2').props.style)).toEqual(
       expect.objectContaining({
         alignSelf: 'flex-start',
       })
