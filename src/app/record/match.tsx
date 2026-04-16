@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -14,6 +12,7 @@ import { saveMatchRecordAtomic } from '@/lib/db/save-match-record';
 import { applyReminderSideEffects } from '@/lib/reminder-side-effects';
 import { useLesion, useLesions } from '@/hooks/useLesions';
 import { useActiveProfile } from '@/providers/active-profile-provider';
+import { Image, Pressable, SafeAreaView, ScrollView, Text, View } from '@/tw';
 
 type DiseaseType = Lesion['disease_type'];
 

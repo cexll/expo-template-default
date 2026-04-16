@@ -1,4 +1,4 @@
-import { View, Text } from 'react-native';
+import { Text, View } from '@/tw';
 import { ChangeBadge } from './ChangeBadge';
 
 type ComparisonRowProps = {

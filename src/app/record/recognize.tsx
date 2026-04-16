@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 
@@ -15,6 +14,7 @@ import { canUseFeature, useSubscriptionStatus } from '@/hooks/useSubscriptionSta
 import { useLesion } from '@/hooks/useLesions';
 import { ApiError, api } from '@/lib/api';
 import { parseReportImageAssetsParam, stringifyReportImageAssetsParam } from '@/lib/report-images';
+import { Image, SafeAreaView, ScrollView, Text, View } from '@/tw';
 
 type Field = {
   key: string;

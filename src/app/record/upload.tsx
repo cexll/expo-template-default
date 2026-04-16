@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
 import { useLesion } from '@/hooks/useLesions';
 import { parseReportImageAssetsParam, stringifyReportImageAssetsParam, type ReportImageAsset } from '@/lib/report-images';
+import { Image, Pressable, SafeAreaView, ScrollView, Text, View } from '@/tw';
 
 type DiseaseType = 'thyroid' | 'breast' | 'lung';
 

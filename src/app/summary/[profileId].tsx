@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Platform, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Platform } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import ViewShot from 'react-native-view-shot';
 import { ChangeBadge } from '@/components/ChangeBadge';
@@ -19,6 +18,7 @@ import { bumpLocalSummaryExportUsed, formatLocalMonth } from '@/lib/subscription
 import { exportSummaryImage } from '@/lib/summary/export-image';
 import { renderSummaryExportImage } from '@/lib/summary/render-export-image';
 import { useAuth } from '@/providers/auth-provider';
+import { SafeAreaView, ScrollView, Text, View } from '@/tw';
 
 function formatSize(sizeX: number | null, sizeY: number | null, sizeZ: number | null) {
   const values = [sizeX, sizeY, sizeZ].filter((v): v is number => v !== null);

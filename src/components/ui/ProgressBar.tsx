@@ -1,4 +1,4 @@
-import { View } from 'react-native';
+import { View } from '@/tw';
 
 type ProgressBarProps = {
   progress: number; // 0-1

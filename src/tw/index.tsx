@@ -1,6 +1,8 @@
 import type { ReactElement } from 'react';
 import { useCssElement } from 'react-native-css';
 import {
+  Image as RNImage,
+  type ImageProps as RNImageProps,
   Pressable as RNPressable,
   type PressableProps as RNPressableProps,
   ScrollView as RNScrollView,
@@ -36,6 +38,16 @@ export function Text(props: TextProps): ReactElement {
 export type PressableProps = RNPressableProps & {
   className?: string;
 };
+
+export type ImageProps = RNImageProps & {
+  className?: string;
+};
+
+export function Image(props: ImageProps): ReactElement {
+  return useCssElement(RNImage as any, props as any, {
+    className: 'style',
+  }) as ReactElement;
+}
 
 export function Pressable(props: PressableProps): ReactElement {
   return useCssElement(RNPressable as any, props as any, {

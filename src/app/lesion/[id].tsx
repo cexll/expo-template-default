@@ -1,5 +1,3 @@
-import { Image, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/ui/Card';
@@ -9,6 +7,7 @@ import { TimelineNode } from '@/components/TimelineNode';
 import { listReportImagesByLesion } from '@/lib/db/queries/report-images';
 import { useExaminations } from '@/hooks/useExaminations';
 import { useLesion } from '@/hooks/useLesions';
+import { Image, SafeAreaView, ScrollView, Text, View } from '@/tw';
 
 function formatMonth(value: string) {
   const date = new Date(value);

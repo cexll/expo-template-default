@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ChangeBadge } from '@/components/ChangeBadge';
 import { ComparisonRow } from '@/components/ComparisonRow';
@@ -14,6 +12,7 @@ import { useCreateReminder, useDeactivateReminder, useRemindersByLesion, useUpda
 import type { Examination, Lesion } from '@/lib/db/types';
 import { parseStrictIsoCalendarDate } from '@/lib/iso-calendar-date';
 import { applyReminderSideEffects } from '@/lib/reminder-side-effects';
+import { Pressable, SafeAreaView, ScrollView, Text, View } from '@/tw';
 
 function formatSignedDiff(value: string) {
   return Number(value) > 0 ? `+${value}` : value;
