@@ -29,6 +29,9 @@ jest.mock('@/lib/auth/token-storage', () => ({
   clearTokens: jest.fn(),
   getAccessToken: jest.fn(),
   subscribeTokenChanges: jest.fn(() => () => {}),
+  isWebSessionBootstrapBlocked: jest.fn(() => false),
+  blockWebSessionBootstrap: jest.fn(),
+  clearWebSessionBootstrapBlock: jest.fn(),
 }));
 
 const { api } = require('@/lib/api') as {

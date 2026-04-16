@@ -7,6 +7,7 @@ export interface TokenPair {
 }
 
 const TOKEN_KEY = 'auth_tokens';
+const WEB_SESSION_BOOTSTRAP_BLOCK_KEY = 'web_auth_cookie_session_blocked';
 
 type TokenChangeListener = (tokens: TokenPair | null) => void;
 const tokenChangeListeners = new Set<TokenChangeListener>();
@@ -26,6 +27,10 @@ export function subscribeTokenChanges(listener: TokenChangeListener) {
   return () => {
     tokenChangeListeners.delete(listener);
   };
+}
+
+function canUseLocalStorage() {
+  return typeof globalThis !== 'undefined' && typeof globalThis.localStorage?.getItem === 'function';
 }
 
 async function getSecureStore() {
@@ -89,4 +94,28 @@ export async function clearTokens(): Promise<void> {
   const store = await getSecureStore();
   if (store) await store.deleteItemAsync(TOKEN_KEY);
   notifyTokenChange(null);
+}
+
+export function isWebSessionBootstrapBlocked(): boolean {
+  if (Platform.OS !== 'web' || !canUseLocalStorage()) {
+    return false;
+  }
+
+  return globalThis.localStorage.getItem(WEB_SESSION_BOOTSTRAP_BLOCK_KEY) === '1';
+}
+
+export function blockWebSessionBootstrap(): void {
+  if (Platform.OS !== 'web' || !canUseLocalStorage()) {
+    return;
+  }
+
+  globalThis.localStorage.setItem(WEB_SESSION_BOOTSTRAP_BLOCK_KEY, '1');
+}
+
+export function clearWebSessionBootstrapBlock(): void {
+  if (Platform.OS !== 'web' || !canUseLocalStorage()) {
+    return;
+  }
+
+  globalThis.localStorage.removeItem(WEB_SESSION_BOOTSTRAP_BLOCK_KEY);
 }

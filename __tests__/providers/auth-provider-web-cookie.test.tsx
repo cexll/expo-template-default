@@ -4,6 +4,8 @@ import { Platform, Pressable, Text, View } from 'react-native';
 
 import { AuthProvider, useAuth } from '@/providers/auth-provider';
 
+let mockWebSessionBootstrapBlocked = false;
+
 jest.mock('@/lib/api', () => ({
   api: {
     get: jest.fn(),
@@ -30,6 +32,13 @@ jest.mock('@/lib/auth/token-storage', () => ({
   clearTokens: jest.fn(),
   getAccessToken: jest.fn(),
   subscribeTokenChanges: jest.fn(() => () => {}),
+  isWebSessionBootstrapBlocked: jest.fn(() => mockWebSessionBootstrapBlocked),
+  blockWebSessionBootstrap: jest.fn(() => {
+    mockWebSessionBootstrapBlocked = true;
+  }),
+  clearWebSessionBootstrapBlock: jest.fn(() => {
+    mockWebSessionBootstrapBlocked = false;
+  }),
 }));
 
 const { api } = require('@/lib/api') as {
@@ -41,6 +50,9 @@ const tokenStorage = require('@/lib/auth/token-storage') as {
   clearTokens: jest.Mock;
   getAccessToken: jest.Mock;
   subscribeTokenChanges: jest.Mock;
+  isWebSessionBootstrapBlocked: jest.Mock;
+  blockWebSessionBootstrap: jest.Mock;
+  clearWebSessionBootstrapBlock: jest.Mock;
 };
 
 function AuthConsumer() {
@@ -86,6 +98,7 @@ describe('AuthProvider web cookie session', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    mockWebSessionBootstrapBlocked = false;
   });
 
   it('bootstraps from /auth/me on web even without a stored token', async () => {
@@ -157,6 +170,10 @@ describe('AuthProvider web cookie session', () => {
       is_new_user: false,
     });
     api.get.mockRejectedValueOnce(new Error('bootstrap failed'));
+    clearWebCookieSession.mockImplementation(async () => {
+      mockWebSessionBootstrapBlocked = true;
+      return false;
+    });
 
     render(
       <AuthProvider>
@@ -174,6 +191,31 @@ describe('AuthProvider web cookie session', () => {
       expect(api.post).toHaveBeenCalledWith('/api/v1/auth/sms/verify', { phone: '13800000000', code: '123456' });
       expect(clearWebCookieSession).toHaveBeenCalledTimes(2);
       expect(tokenStorage.clearTokens).toHaveBeenCalledTimes(2);
+      expect(screen.getByTestId('authenticated').props.children).toBe('no');
+      expect(screen.getByText('anonymous')).toBeTruthy();
+    });
+  });
+
+  it('stays logged out on web reload when cookie cleanup previously failed', async () => {
+    mockWebSessionBootstrapBlocked = true;
+    tokenStorage.getAccessToken.mockResolvedValue(null);
+    clearWebCookieSession.mockResolvedValue(false);
+    api.get.mockResolvedValue({
+      id: 'u1',
+      phone: '13800000000',
+      nickname: 'Cookie User',
+    });
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading').props.children).toBe('ready');
+      expect(clearWebCookieSession).toHaveBeenCalledTimes(1);
+      expect(api.get).not.toHaveBeenCalled();
       expect(screen.getByTestId('authenticated').props.children).toBe('no');
       expect(screen.getByText('anonymous')).toBeTruthy();
     });

@@ -1,5 +1,12 @@
 import { Platform } from 'react-native';
-import { getAccessToken, getRefreshToken, saveTokens, clearTokens } from './auth/token-storage';
+import {
+  blockWebSessionBootstrap,
+  clearTokens,
+  clearWebSessionBootstrapBlock,
+  getAccessToken,
+  getRefreshToken,
+  saveTokens,
+} from './auth/token-storage';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:18000';
 const IS_WEB = Platform.OS === 'web';
@@ -15,16 +22,25 @@ function withCredentials(options: RequestInit): RequestInit {
   };
 }
 
-export async function clearWebCookieSession(): Promise<void> {
-  if (!IS_WEB) return;
+export async function clearWebCookieSession(): Promise<boolean> {
+  if (!IS_WEB) return true;
 
   try {
-    await fetch(`${API_BASE}/api/v1/auth/logout`, withCredentials({
+    const response = await fetch(`${API_BASE}/api/v1/auth/logout`, withCredentials({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     }));
+
+    if (!response.ok) {
+      blockWebSessionBootstrap();
+      return false;
+    }
+
+    clearWebSessionBootstrapBlock();
+    return true;
   } catch {
-    // Best-effort cleanup for httpOnly cookie sessions.
+    blockWebSessionBootstrap();
+    return false;
   }
 }
 

@@ -11,6 +11,9 @@ describe('api web cookie session', () => {
       getRefreshToken: jest.fn(),
       saveTokens: jest.fn(),
       clearTokens: jest.fn(),
+      isWebSessionBootstrapBlocked: jest.fn(() => false),
+      blockWebSessionBootstrap: jest.fn(),
+      clearWebSessionBootstrapBlock: jest.fn(),
     }));
 
     const { Platform } = require('react-native') as typeof import('react-native');
@@ -48,6 +51,9 @@ describe('api web cookie session', () => {
       getRefreshToken: jest.fn(),
       saveTokens: jest.fn(),
       clearTokens: jest.fn(),
+      isWebSessionBootstrapBlocked: jest.fn(() => false),
+      blockWebSessionBootstrap: jest.fn(),
+      clearWebSessionBootstrapBlock: jest.fn(),
     }));
 
     const { Platform } = require('react-native') as typeof import('react-native');
@@ -109,6 +115,9 @@ describe('api web cookie session', () => {
       getRefreshToken: jest.fn(),
       saveTokens: jest.fn(),
       clearTokens: jest.fn(),
+      isWebSessionBootstrapBlocked: jest.fn(() => false),
+      blockWebSessionBootstrap: jest.fn(),
+      clearWebSessionBootstrapBlock: jest.fn(),
     }));
 
     const { Platform } = require('react-native') as typeof import('react-native');
@@ -121,6 +130,8 @@ describe('api web cookie session', () => {
     const tokenStorage = require('@/lib/auth/token-storage') as {
       getAccessToken: jest.Mock;
       clearTokens: jest.Mock;
+      blockWebSessionBootstrap: jest.Mock;
+      clearWebSessionBootstrapBlock: jest.Mock;
     };
     tokenStorage.getAccessToken.mockResolvedValue(null);
 
@@ -137,9 +148,9 @@ describe('api web cookie session', () => {
         json: async () => ({ code: 401, message: 'refresh expired', data: null }),
       } as unknown as Response)
       .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({ code: 0, message: 'ok', data: {} }),
+        ok: false,
+        status: 500,
+        json: async () => ({ code: 500, message: 'logout failed', data: null }),
       } as unknown as Response);
 
     const promise = api.get('/api/v1/auth/me');
@@ -157,6 +168,8 @@ describe('api web cookie session', () => {
         credentials: 'include',
       })
     );
+    expect(tokenStorage.blockWebSessionBootstrap).toHaveBeenCalledTimes(1);
+    expect(tokenStorage.clearWebSessionBootstrapBlock).not.toHaveBeenCalled();
     expect(tokenStorage.clearTokens).toHaveBeenCalledTimes(1);
   });
 });

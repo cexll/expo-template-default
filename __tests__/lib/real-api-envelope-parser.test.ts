@@ -5,6 +5,9 @@ jest.mock('@/lib/auth/token-storage', () => ({
   getRefreshToken: jest.fn(),
   saveTokens: jest.fn(),
   clearTokens: jest.fn(),
+  isWebSessionBootstrapBlocked: jest.fn(() => false),
+  blockWebSessionBootstrap: jest.fn(),
+  clearWebSessionBootstrapBlock: jest.fn(),
 }));
 
 const tokenStorage = require('@/lib/auth/token-storage') as {

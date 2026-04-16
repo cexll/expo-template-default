@@ -1,7 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { Platform } from 'react-native';
 import { api, AuthError, clearWebCookieSession } from '@/lib/api';
-import { saveTokens, clearTokens, getAccessToken, subscribeTokenChanges } from '@/lib/auth/token-storage';
+import {
+  clearTokens,
+  clearWebSessionBootstrapBlock,
+  getAccessToken,
+  isWebSessionBootstrapBlocked,
+  saveTokens,
+  subscribeTokenChanges,
+} from '@/lib/auth/token-storage';
 
 export type AuthUser = {
   id: string;
@@ -38,9 +45,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
+        if (isWebPlatform() && isWebSessionBootstrapBlocked()) {
+          await clearFailedWebBootstrapSession();
+          return;
+        }
+
         const token = await getAccessToken();
         if (isWebPlatform() || token) {
           const me = await api.get<AuthUser>('/api/v1/auth/me');
+          if (isWebPlatform()) {
+            clearWebSessionBootstrapBlock();
+          }
           setUser(me);
         }
       } catch {
@@ -81,6 +96,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setIsNewUser(data.is_new_user);
       const me = await api.get<AuthUser>('/api/v1/auth/me');
+      if (isWebPlatform()) {
+        clearWebSessionBootstrapBlock();
+      }
       setUser(me);
     } catch (err) {
       await clearFailedWebBootstrapSession();
@@ -109,6 +127,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setIsNewUser(data.is_new_user);
       const me = await api.get<AuthUser>('/api/v1/auth/me');
+      if (isWebPlatform()) {
+        clearWebSessionBootstrapBlock();
+      }
       setUser(me);
     } catch (err) {
       await clearFailedWebBootstrapSession();
@@ -122,6 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (isWebPlatform()) {
       try {
         await api.post('/api/v1/auth/logout');
+        clearWebSessionBootstrapBlock();
       } catch (error) {
         if (!(error instanceof AuthError)) {
           throw error;
