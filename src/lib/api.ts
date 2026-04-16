@@ -15,6 +15,24 @@ function withCredentials(options: RequestInit): RequestInit {
   };
 }
 
+export async function clearWebCookieSession(): Promise<void> {
+  if (!IS_WEB) return;
+
+  try {
+    await fetch(`${API_BASE}/api/v1/auth/logout`, withCredentials({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    }));
+  } catch {
+    // Best-effort cleanup for httpOnly cookie sessions.
+  }
+}
+
+async function clearEffectiveSession(): Promise<void> {
+  await clearWebCookieSession();
+  await clearTokens();
+}
+
 async function refreshToken(): Promise<boolean> {
   if (isRefreshing && refreshPromise) return refreshPromise;
   isRefreshing = true;
@@ -84,7 +102,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       }
       res = await fetch(`${API_BASE}${path}`, withCredentials({ ...options, headers }));
     } else {
-      await clearTokens();
+      await clearEffectiveSession();
       throw new AuthError('Session expired');
     }
   }
@@ -142,7 +160,7 @@ export const api = {
           body: formData,
         }));
       } else {
-        await clearTokens();
+        await clearEffectiveSession();
         throw new AuthError('Session expired');
       }
     }

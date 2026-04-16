@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { Platform } from 'react-native';
-import { api, AuthError } from '@/lib/api';
+import { api, AuthError, clearWebCookieSession } from '@/lib/api';
 import { saveTokens, clearTokens, getAccessToken, subscribeTokenChanges } from '@/lib/auth/token-storage';
 
 export type AuthUser = {
@@ -25,6 +25,11 @@ function isWebPlatform() {
   return Platform.OS === 'web';
 }
 
+async function clearFailedWebBootstrapSession() {
+  await clearWebCookieSession();
+  await clearTokens();
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,7 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(me);
         }
       } catch {
-        await clearTokens();
+        await clearFailedWebBootstrapSession();
         setUser(null);
         setIsNewUser(false);
       } finally {
@@ -78,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const me = await api.get<AuthUser>('/api/v1/auth/me');
       setUser(me);
     } catch (err) {
-      await clearTokens();
+      await clearFailedWebBootstrapSession();
       setUser(null);
       setIsNewUser(false);
       throw err;
@@ -106,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const me = await api.get<AuthUser>('/api/v1/auth/me');
       setUser(me);
     } catch (err) {
-      await clearTokens();
+      await clearFailedWebBootstrapSession();
       setUser(null);
       setIsNewUser(false);
       throw err;

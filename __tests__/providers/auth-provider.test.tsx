@@ -10,6 +10,7 @@ jest.mock('@/lib/api', () => ({
     post: jest.fn(),
     upload: jest.fn(),
   },
+  clearWebCookieSession: jest.fn(),
   AuthError: class AuthError extends Error {},
   ApiError: class ApiError extends Error {
     code: number;

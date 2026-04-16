@@ -102,4 +102,61 @@ describe('api web cookie session', () => {
     );
     expect(tokenStorage.getRefreshToken).not.toHaveBeenCalled();
   });
+
+  it('clears cookie-backed session via logout when web refresh fails', async () => {
+    jest.doMock('@/lib/auth/token-storage', () => ({
+      getAccessToken: jest.fn(),
+      getRefreshToken: jest.fn(),
+      saveTokens: jest.fn(),
+      clearTokens: jest.fn(),
+    }));
+
+    const { Platform } = require('react-native') as typeof import('react-native');
+    Object.defineProperty(Platform, 'OS', {
+      configurable: true,
+      value: 'web',
+    });
+
+    const { api, AuthError } = require('@/lib/api') as typeof import('@/lib/api');
+    const tokenStorage = require('@/lib/auth/token-storage') as {
+      getAccessToken: jest.Mock;
+      clearTokens: jest.Mock;
+    };
+    tokenStorage.getAccessToken.mockResolvedValue(null);
+
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ code: 401, message: 'unauthorized', data: null }),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ code: 401, message: 'refresh expired', data: null }),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ code: 0, message: 'ok', data: {} }),
+      } as unknown as Response);
+
+    const promise = api.get('/api/v1/auth/me');
+    await expect(promise).rejects.toBeInstanceOf(AuthError);
+    await expect(promise).rejects.toMatchObject({
+      name: 'AuthError',
+      message: 'Session expired',
+    });
+
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining('/api/v1/auth/logout'),
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+      })
+    );
+    expect(tokenStorage.clearTokens).toHaveBeenCalledTimes(1);
+  });
 });

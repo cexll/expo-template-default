@@ -10,6 +10,7 @@ jest.mock('@/lib/api', () => ({
     post: jest.fn(),
     upload: jest.fn(),
   },
+  clearWebCookieSession: jest.fn(),
   AuthError: class AuthError extends Error {},
   ApiError: class ApiError extends Error {
     code: number;
@@ -34,6 +35,7 @@ jest.mock('@/lib/auth/token-storage', () => ({
 const { api } = require('@/lib/api') as {
   api: { get: jest.Mock; post: jest.Mock };
 };
+const clearWebCookieSession = require('@/lib/api').clearWebCookieSession as jest.Mock;
 const tokenStorage = require('@/lib/auth/token-storage') as {
   saveTokens: jest.Mock;
   clearTokens: jest.Mock;
@@ -142,6 +144,38 @@ describe('AuthProvider web cookie session', () => {
       expect(api.get).toHaveBeenLastCalledWith('/api/v1/auth/me');
       expect(screen.getByTestId('authenticated').props.children).toBe('yes');
       expect(screen.getByText('13800000000')).toBeTruthy();
+    });
+  });
+
+  it('clears the cookie session when post-login /auth/me bootstrap fails on web', async () => {
+    tokenStorage.getAccessToken.mockResolvedValue(null);
+    api.get.mockRejectedValueOnce(new Error('unauthenticated'));
+    api.post.mockResolvedValue({
+      access_token: 'access_1',
+      refresh_token: 'refresh_1',
+      expires_in: 3600,
+      is_new_user: false,
+    });
+    api.get.mockRejectedValueOnce(new Error('bootstrap failed'));
+
+    render(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading').props.children).toBe('ready');
+    });
+
+    fireEvent.press(screen.getByTestId('sign-in'));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/api/v1/auth/sms/verify', { phone: '13800000000', code: '123456' });
+      expect(clearWebCookieSession).toHaveBeenCalledTimes(2);
+      expect(tokenStorage.clearTokens).toHaveBeenCalledTimes(2);
+      expect(screen.getByTestId('authenticated').props.children).toBe('no');
+      expect(screen.getByText('anonymous')).toBeTruthy();
     });
   });
 
