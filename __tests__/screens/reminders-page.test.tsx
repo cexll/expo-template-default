@@ -64,6 +64,10 @@ function renderWithQueryClient(node: React.ReactElement) {
         gcTime: Infinity,
         retry: false,
       },
+      mutations: {
+        gcTime: Infinity,
+        retry: false,
+      },
     },
   });
 

@@ -1,10 +1,6 @@
 /** @type {import('jest').Config} */
 module.exports = {
   preset: 'jest-expo',
-  // The suite currently leaves open handles (likely from React Query timers in tests),
-  // causing `npm test -- --runInBand` to hang after reporting passing results.
-  // Force an exit so validators complete deterministically in this environment.
-  forceExit: true,
   moduleNameMapper: {
     '^expo-modules-core$': '<rootDir>/node_modules/expo-modules-core',
     '^expo-modules-core/(.*)$': '<rootDir>/node_modules/expo-modules-core/$1',
