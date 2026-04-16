@@ -1,6 +1,4 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
 import { Button } from '@/components/ui/Button';
@@ -8,6 +6,7 @@ import { Input } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import { useCreateProfile, useProfiles } from '@/hooks/useProfiles';
 import { useActiveProfile } from '@/providers/active-profile-provider';
+import { SafeAreaView, Text, View } from '@/tw';
 
 function makeId(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;

@@ -1,4 +1,4 @@
-import { View, Text, Pressable } from 'react-native';
+import { Pressable, Text, View } from '@/tw';
 
 type TagProps = {
   text: string;
