@@ -1,3 +1,6 @@
+import { notifyManager } from '@tanstack/react-query';
+import { act } from '@testing-library/react-native';
+
 jest.mock('react-native-css', () => {
   const React = jest.requireActual('react');
 
@@ -12,6 +15,12 @@ jest.mock('react-native-css', () => {
 });
 
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+
+notifyManager.setNotifyFunction((callback) => {
+  act(() => {
+    callback();
+  });
+});
 
 // Minimal localStorage shim for Node/Jest (used by web fallbacks in token storage and other runtime glue).
 if (!globalThis.localStorage) {
