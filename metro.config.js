@@ -4,6 +4,14 @@ const { withNativewind } = require('nativewind/metro');
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(__dirname);
 
+// On this macOS host, Watchman has intermittently failed with
+// `FSEventStreamStart failed` / `EMFILE` during Expo web QA.
+// Prefer Metro's native recursive watcher so `npm run web -- --port 8082`
+// stays usable without relying on the flaky Watchman path.
+if (config.resolver) {
+  config.resolver.useWatchman = false;
+}
+
 // expo-sqlite web support needs wasm asset handling + cross-origin isolation headers.
 // See: https://docs.expo.dev/versions/latest/sdk/sqlite/#web-setup
 if (config.resolver?.assetExts && !config.resolver.assetExts.includes('wasm')) {
