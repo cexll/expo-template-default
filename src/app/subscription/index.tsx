@@ -1,6 +1,4 @@
 import { useCallback, useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -9,6 +7,7 @@ import { SUBSCRIPTION_COMPARISON_ROWS } from '@/lib/subscription/catalog';
 import { savePendingSubscriptionOrderContext } from '@/lib/subscription/order-context';
 import { useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
 import { useAuth } from '@/providers/auth-provider';
+import { Pressable, SafeAreaView, ScrollView, Text, View } from '@/tw';
 
 type Plan = 'monthly' | 'yearly';
 type Provider = 'wechat' | 'alipay';

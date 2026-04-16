@@ -1,5 +1,3 @@
-import { View, Text } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -10,6 +8,7 @@ import {
   readPendingSubscriptionOrderContext,
 } from '@/lib/subscription/order-context';
 import { useAuth } from '@/providers/auth-provider';
+import { SafeAreaView, Text, View } from '@/tw';
 
 function pickParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;

@@ -1,7 +1,8 @@
-import { View, Text, Modal, Pressable } from 'react-native';
+import { Modal } from 'react-native';
 import { router } from 'expo-router';
 import { Button } from './ui/Button';
 import { PAYWALL_MEMBER_FEATURES } from '@/lib/subscription/catalog';
+import { Pressable, Text, View } from '@/tw';
 
 type PaywallSheetProps = {
   visible: boolean;
