@@ -1,10 +1,8 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 
-function TabIcon({ color }: { color: string }) {
-  return <View style={[styles.icon, { backgroundColor: color }]} />;
-}
+import { MainTabIcon } from '@/components/MainTabIcon';
 
 export default function MainTabsLayout() {
   return (
@@ -22,21 +20,27 @@ export default function MainTabsLayout() {
         name="index"
         options={{
           title: '首页',
-          tabBarIcon: ({ color }) => <TabIcon color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <MainTabIcon color={color} focused={focused} variant="home" />
+          ),
         }}
       />
       <Tabs.Screen
         name="reminders"
         options={{
           title: '提醒',
-          tabBarIcon: ({ color }) => <TabIcon color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <MainTabIcon color={color} focused={focused} variant="reminders" />
+          ),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: '设置',
-          tabBarIcon: ({ color }) => <TabIcon color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <MainTabIcon color={color} focused={focused} variant="settings" />
+          ),
         }}
       />
       <Tabs.Screen
@@ -50,11 +54,6 @@ export default function MainTabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  icon: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-  },
   item: {
     paddingTop: 8,
   },
