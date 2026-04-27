@@ -1,6 +1,21 @@
 import { deriveAutoReminder } from '@/lib/reminder-calculator';
 
 describe('deriveAutoReminder (PRD §4.6)', () => {
+  it('keeps a manual next review date instead of replacing it with RADS auto derivation', () => {
+    const out = deriveAutoReminder({
+      diseaseType: 'breast',
+      examDate: '2024-03-15',
+      birads: '3',
+      manualOverrideDate: '2024-10-20',
+    });
+
+    expect(out).toEqual({
+      kind: 'manual',
+      nextExamDate: '2024-10-20',
+      reason: '用户手动修改复查日',
+    });
+  });
+
   it('thyroid: TI-RADS 2 -> +12 months', () => {
     const out = deriveAutoReminder({
       diseaseType: 'thyroid',

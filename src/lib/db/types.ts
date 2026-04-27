@@ -1,3 +1,27 @@
+export type DiseaseType = 'thyroid' | 'breast' | 'lung';
+
+export type LocalArchiveField = 'location' | keyof Examination;
+
+export type DiseaseFieldDefinition = {
+  diseaseType: DiseaseType;
+  requiredFields: LocalArchiveField[];
+};
+
+export const DISEASE_FIELD_DEFINITIONS: DiseaseFieldDefinition[] = [
+  {
+    diseaseType: 'thyroid',
+    requiredFields: ['location', 'size_x', 'tirads', 'echo_type', 'border', 'calcification', 'blood_flow'],
+  },
+  {
+    diseaseType: 'breast',
+    requiredFields: ['location', 'size_x', 'birads', 'echo_type', 'border', 'shape', 'orientation'],
+  },
+  {
+    diseaseType: 'lung',
+    requiredFields: ['location', 'size_x', 'density', 'lung_rads', 'morphology', 'pleural_pull'],
+  },
+];
+
 export interface Profile {
   id: string;
   nickname: string;

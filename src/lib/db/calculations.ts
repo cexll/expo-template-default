@@ -1,3 +1,13 @@
+type ChangeReference = 'baseline' | 'previous';
+
+type ChangeDisplay = {
+  type: 'increase' | 'decrease' | 'unchanged';
+  indicator: '▲' | '▼' | '—';
+  absoluteLabel: string;
+  percentageLabel: string;
+  summaryLabel: string;
+};
+
 type ChangeResult = {
   absolute: number;
   percentage: number;
@@ -26,4 +36,30 @@ export function calculateBaselineChange(current: number, baseline: number): Chan
 
 export function calculatePreviousChange(current: number, previous: number): ChangeResult {
   return calculateChange(current, previous);
+}
+
+export function formatChangeDisplay(change: ChangeResult, reference: ChangeReference): ChangeDisplay {
+  const referenceLabel = reference === 'baseline' ? '较基线' : '较上次';
+
+  if (change.absolute === 0) {
+    return {
+      type: 'unchanged',
+      indicator: '—',
+      absoluteLabel: '— 未变',
+      percentageLabel: '0%',
+      summaryLabel: '未变',
+    };
+  }
+
+  const increased = change.absolute > 0;
+  const absolutePrefix = increased ? '+' : '';
+  const percentagePrefix = change.percentage > 0 ? '+' : '';
+
+  return {
+    type: increased ? 'increase' : 'decrease',
+    indicator: increased ? '▲' : '▼',
+    absoluteLabel: `${absolutePrefix}${change.absolute.toFixed(1)}mm ${referenceLabel}`,
+    percentageLabel: `${percentagePrefix}${change.percentage}%`,
+    summaryLabel: `${referenceLabel}${increased ? '增大' : '缩小'}`,
+  };
 }

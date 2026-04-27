@@ -1,12 +1,21 @@
-import type {
-  Examination,
-  Lesion,
-  Profile,
-  Reminder,
-  ReportImage,
+import {
+  DISEASE_FIELD_DEFINITIONS,
+  type Examination,
+  type Lesion,
+  type Profile,
+  type Reminder,
+  type ReportImage,
 } from '@/lib/db/types';
 
 describe('db types', () => {
+  it('defines PRD-required local field sets for thyroid, breast, and lung examinations', () => {
+    expect(DISEASE_FIELD_DEFINITIONS.map((definition) => [definition.diseaseType, definition.requiredFields])).toEqual([
+      ['thyroid', ['location', 'size_x', 'tirads', 'echo_type', 'border', 'calcification', 'blood_flow']],
+      ['breast', ['location', 'size_x', 'birads', 'echo_type', 'border', 'shape', 'orientation']],
+      ['lung', ['location', 'size_x', 'density', 'lung_rads', 'morphology', 'pleural_pull']],
+    ]);
+  });
+
   it('supports the archive entity shapes used by the db layer', () => {
     const profile: Profile = {
       id: 'profile-1',

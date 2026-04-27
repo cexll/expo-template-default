@@ -1,3 +1,4 @@
+import { api } from '@/lib/api';
 import { getDatabase } from '@/lib/db';
 import { buildUpdateSet } from '@/lib/db/queries/shared';
 import type { Reminder } from '@/lib/db/types';
@@ -43,6 +44,10 @@ export type ReminderSyncItem = {
   next_exam_date: string;
 };
 
+type SyncedReminderReply = {
+  reminders?: ReminderSyncItem[];
+};
+
 export async function listActiveReminderSyncItems() {
   const db = await getDatabase();
   return db.getAllAsync<ReminderSyncItem>(
@@ -59,6 +64,46 @@ export async function listActiveReminderSyncItems() {
 export async function getReminderById(id: string) {
   const db = await getDatabase();
   return db.getFirstAsync<Reminder>('SELECT * FROM reminders WHERE id = ? LIMIT 1;', id);
+}
+
+function makeReminderId(lesionId: string) {
+  return `reminder_${lesionId}_${Date.now().toString(36)}`;
+}
+
+export async function syncBackendRemindersToLocal(profileId: string) {
+  const data = await api.get<SyncedReminderReply>('/api/v1/reminders');
+  const reminders = Array.isArray(data.reminders) ? data.reminders : [];
+  const db = await getDatabase();
+  const lesions = await db.getAllAsync<{ id: string; label: string }>(
+    'SELECT id, label FROM lesions WHERE profile_id = ? AND is_archived = 0;',
+    profileId
+  );
+  const lesionIdByLabel = new Map(lesions.map((lesion) => [lesion.label, lesion.id]));
+
+  for (const remote of reminders) {
+    const lesionId = lesionIdByLabel.get(remote.lesion_label);
+    if (!lesionId || !remote.next_exam_date) continue;
+
+    const existing = await listRemindersByLesion(lesionId);
+    const active = existing.find((reminder) => reminder.is_active === 1);
+    if (active) {
+      await updateReminder(active.id, {
+        next_exam_date: remote.next_exam_date,
+        source: active.source,
+        is_active: 1,
+      });
+    } else {
+      await createReminder({
+        id: makeReminderId(lesionId),
+        lesion_id: lesionId,
+        next_exam_date: remote.next_exam_date,
+        source: 'manual',
+        is_active: 1,
+      });
+    }
+  }
+
+  return reminders.length;
 }
 
 export async function createReminder(input: CreateReminderInput) {

@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
+  createBackendProfile,
   createProfile,
   deleteProfile,
   getProfileById,
   listProfiles,
   updateProfile,
+  type BackendProfileInput,
   type CreateProfileInput,
   type UpdateProfileInput,
 } from '@/lib/db/queries/profiles';
@@ -31,11 +33,11 @@ export function useProfile(id: string) {
   });
 }
 
-export function useCreateProfile() {
+function useProfileMutation<TInput>(mutationFn: (input: TInput) => ReturnType<typeof createProfile>) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: CreateProfileInput) => createProfile(input),
+    mutationFn,
     onSuccess: async (profile) => {
       await queryClient.invalidateQueries({ queryKey: profileKeys.all });
       if (profile) {
@@ -43,6 +45,14 @@ export function useCreateProfile() {
       }
     },
   });
+}
+
+export function useCreateProfile() {
+  return useProfileMutation((input: CreateProfileInput) => createProfile(input));
+}
+
+export function useCreateBackendProfile() {
+  return useProfileMutation((input: BackendProfileInput) => createBackendProfile(input));
 }
 
 export function useUpdateProfile() {

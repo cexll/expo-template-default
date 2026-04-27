@@ -7,6 +7,14 @@ export type CreateProfileInput = Pick<
   'id' | 'nickname' | 'gender' | 'birth_year' | 'avatar_uri' | 'sort_order'
 >;
 
+export type BackendProfileInput = {
+  sessionUserId: string;
+  nickname: string;
+  gender: Profile['gender'];
+  birthYear: number;
+  existingCount: number;
+};
+
 export type UpdateProfileInput = Partial<
   Pick<Profile, 'nickname' | 'gender' | 'birth_year' | 'avatar_uri' | 'sort_order'>
 >;
@@ -41,6 +49,18 @@ export async function createProfile(input: CreateProfileInput) {
   );
 
   return getProfileById(input.id);
+}
+
+export async function createBackendProfile(input: BackendProfileInput) {
+  const stableSessionId = input.sessionUserId.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+  return createProfile({
+    id: `profile_${stableSessionId || Date.now().toString(36)}`,
+    nickname: input.nickname.trim(),
+    gender: input.gender,
+    birth_year: input.birthYear,
+    avatar_uri: null,
+    sort_order: input.existingCount,
+  });
 }
 
 export async function updateProfile(id: string, updates: UpdateProfileInput) {

@@ -8,6 +8,11 @@ export type ReminderDerivation =
       reason: string;
     }
   | {
+      kind: 'manual';
+      nextExamDate: string;
+      reason: string;
+    }
+  | {
       kind: 'no_auto';
       nextExamDate: null;
       reason: string;
@@ -59,7 +64,12 @@ export function deriveAutoReminder(input: {
   tirads?: string | null;
   birads?: string | null;
   lungRads?: string | null;
+  manualOverrideDate?: string | null;
 }): ReminderDerivation {
+  if (input.manualOverrideDate && isIsoDateOnly(input.manualOverrideDate)) {
+    return { kind: 'manual', nextExamDate: input.manualOverrideDate, reason: '用户手动修改复查日' };
+  }
+
   const examDate = input.examDate;
   if (!isIsoDateOnly(examDate)) {
     const today = new Date().toISOString().slice(0, 10);

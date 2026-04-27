@@ -5,6 +5,7 @@ import {
   deactivateReminder,
   listActiveRemindersByProfile,
   listRemindersByLesion,
+  syncBackendRemindersToLocal,
   updateReminder,
   type CreateReminderInput,
   type UpdateReminderInput,
@@ -19,7 +20,14 @@ const reminderKeys = {
 export function useActiveReminders(profileId: string) {
   return useQuery({
     queryKey: reminderKeys.activeByProfile(profileId),
-    queryFn: () => listActiveRemindersByProfile(profileId),
+    queryFn: async () => {
+      try {
+        await syncBackendRemindersToLocal(profileId);
+      } catch {
+        // Local reminders remain authoritative when backend sync is unavailable.
+      }
+      return listActiveRemindersByProfile(profileId);
+    },
     enabled: Boolean(profileId),
   });
 }
