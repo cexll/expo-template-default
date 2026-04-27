@@ -61,7 +61,7 @@ export function MainTabIcon({ color, focused, variant }: MainTabIconProps) {
       <SymbolView
         testID={`main-tab-icon-${variant}-symbol`}
         name={focused ? names.active : names.inactive}
-        size={20}
+        size={18}
         tintColor={color}
         weight={focused ? { ios: 'bold', android: bold } : { ios: 'regular', android: regular }}
       />
@@ -71,16 +71,16 @@ export function MainTabIcon({ color, focused, variant }: MainTabIconProps) {
 
 const styles = StyleSheet.create({
   container: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
   },
   containerActive: {
-    backgroundColor: '#EFE7DA',
-    borderColor: '#E6DED2',
+    backgroundColor: '#F5F0E6',
+    borderColor: '#DDD8CF',
   },
   containerInactive: {
     backgroundColor: 'transparent',

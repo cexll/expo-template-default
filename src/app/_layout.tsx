@@ -4,6 +4,7 @@ import { AppErrorBoundary } from '@/components/app-error-boundary';
 import { AuthGuard } from '@/components/AuthGuard';
 import { AppProviders } from '@/providers/app-providers';
 import '@/global.css';
+import './pixel-auth-home-paywall.css';
 
 export { AppErrorBoundary as ErrorBoundary };
 
@@ -15,6 +16,7 @@ export default function RootLayout() {
         <Stack.Screen name="(main)" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="lesion/[id]" />
+        <Stack.Screen name="lesion/[id]/compare" />
         <Stack.Screen name="record/upload" />
         <Stack.Screen name="record/recognize" />
         <Stack.Screen name="record/match" />

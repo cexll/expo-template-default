@@ -1,17 +1,15 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap");
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/preflight.css" layer(base);
 @import "tailwindcss/utilities.css";
 
 @layer theme {
   @theme {
-    --font-display:
-      Spline Sans, Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,
-      Segoe UI Symbol, Noto Color Emoji;
-    --font-mono:
-      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
-    --font-rounded:
-      "SF Pro Rounded", "Hiragino Maru Gothic ProN", Meiryo, "MS PGothic", sans-serif;
-    --font-serif: Georgia, "Times New Roman", serif;
+    --font-display: "DM Serif Display", serif;
+    --font-sans: "DM Sans", sans-serif;
+    --font-mono: "DM Mono", monospace;
+    --font-rounded: "DM Sans", sans-serif;
+    --font-serif: "DM Serif Display", serif;
     --color-brand-50: #f4f9f1;
     --color-brand-100: #dcefd2;
     --color-brand-500: #4f7a57;
@@ -21,18 +19,208 @@
     --color-ink-400: #8e8675;
     --color-ink-700: #312c23;
     --color-ink-900: #181510;
-    --color-nav-bg: #F5F0E6;
-    --color-primary: #3D3528;
-    --color-card: #FFFFFF;
-    --color-page-bg: #FAF8F4;
-    --color-increase-bg: #FDF0E0;
-    --color-increase-text: #8A5200;
-    --color-new-bg: #FFF7F4;
-    --color-new-text: #8B3A1A;
-    --color-stable-bg: #EDF7F2;
-    --color-stable-text: #1A6645;
-    --color-neutral-bg: #F5F5F3;
-    --color-neutral-text: #C4BDB4;
+    --color-shell-bg: #cdc8c0;
+    --color-nav-bg: #f5f0e6;
+    --color-primary: #3d3528;
+    --color-card: #ffffff;
+    --color-page-bg: #faf8f4;
+    --color-border: #e8e2d8;
+    --color-border-strong: #ddd8cf;
+    --color-muted: #8a7d6e;
+    --color-hint: #b0a494;
+    --color-increase-bg: #fdf0e0;
+    --color-increase-text: #8a5200;
+    --color-new-bg: #fff7f4;
+    --color-new-text: #8b3a1a;
+    --color-new-mid: #c0522a;
+    --color-new-border: #f0b8a0;
+    --color-stable-bg: #edf7f2;
+    --color-stable-text: #1a6645;
+    --color-neutral-bg: #f5f5f3;
+    --color-neutral-text: #c4bdb4;
+    --color-blue-bg: #edf2fb;
+    --color-blue-text: #2a5299;
+    --color-wechat: #07c160;
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-height: 100%;
+  }
+
+  body {
+    background: #cdc8c0;
+    font-family: "DM Sans", sans-serif;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  #root,
+  #root *:not(svg):not(svg *) {
+    font-family: "DM Sans", sans-serif !important;
+  }
+
+  #root .font-serif,
+  #root [data-font="serif"] {
+    font-family: "DM Serif Display", serif !important;
+  }
+
+  #root .font-mono,
+  #root [data-font="mono"],
+  #root input {
+    font-family: "DM Mono", monospace !important;
+  }
+}
+
+@layer utilities {
+  @media screen {
+    body {
+      align-items: flex-start;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+      padding: 32px 16px;
+    }
+
+    #root {
+      background: #faf8f4;
+      border: 2px solid #b8b2aa;
+      border-radius: 38px;
+      display: flex;
+      flex: 0 0 320px;
+      height: 644px;
+      max-height: 644px;
+      max-width: 320px;
+      min-height: 644px;
+      overflow: hidden;
+      width: 320px;
+    }
+
+    #root input::placeholder {
+      color: #c4bdb4;
+      font-family: "DM Sans", sans-serif;
+      font-size: 13px;
+    }
+
+    #root [data-testid="login-safe-area"],
+    #root [data-testid="onboarding-safe-area"] {
+      font-family: "DM Sans", sans-serif;
+      min-height: 640px;
+    }
+
+    #root [data-testid="login-safe-area"] {
+      transform: translateY(0);
+    }
+
+    #root [data-testid="app-shell-screen"] {
+      font-family: "DM Sans", sans-serif;
+      min-height: 640px;
+    }
+
+    #root [data-testid="home-screen"] {
+      flex: 0 0 auto;
+      height: auto;
+      min-height: 768px;
+    }
+
+    #root [data-testid="home-topbar"],
+    #root [data-testid="profile-switcher-wrapper"],
+    #root [data-testid="home-scroll-view"] {
+      font-family: "DM Sans", sans-serif;
+    }
+
+    #root .css-g5y9jx,
+    #root .font-serif,
+    #root [data-font="serif"],
+    #root [data-demo-role] {
+      line-height: normal !important;
+    }
+
+    #root [data-demo-role="topbar"] {
+      width: 100% !important;
+      align-items: center !important;
+      background: #f5f0e6 !important;
+      border-bottom: 0.5px solid #ddd8cf !important;
+      display: flex !important;
+      flex-direction: row !important;
+      flex-shrink: 0 !important;
+      height: auto !important;
+      justify-content: space-between !important;
+      min-height: 0 !important;
+      padding: 13px 18px 10px !important;
+    }
+
+    #root [data-demo-role="scroll"] {
+      flex: 1 1 0% !important;
+      padding: 13px 15px !important;
+    }
+
+    #root [data-demo-role="pstrip"] {
+      background: #f5f0e6 !important;
+      border-bottom: 1px solid #ddd8cf !important;
+      display: flex !important;
+      flex-direction: row !important;
+      flex-shrink: 0 !important;
+      gap: 7px !important;
+      overflow-x: auto !important;
+      padding: 8px 14px 11px !important;
+    }
+
+    #root [data-demo-role="chip"] {
+      border-radius: 20px !important;
+      flex-shrink: 0 !important;
+      min-width: 70px !important;
+      padding: 8px 13px !important;
+      text-align: center !important;
+    }
+
+    #root [data-demo-role="chip-add"] {
+      align-self: center !important;
+      border: 0.5px dashed #d4cdc0 !important;
+      border-radius: 50% !important;
+      color: #c4bdb4 !important;
+      display: flex !important;
+      flex-shrink: 0 !important;
+      font-size: 17px !important;
+      height: 38px !important;
+      justify-content: center !important;
+      align-items: center !important;
+      width: 38px !important;
+    }
+
+    #root [data-demo-role="topbar-text"],
+    #root [data-demo-role="node-text"] {
+      line-height: normal !important;
+    }
+
+    #root [data-demo-role="section"] {
+      color: #b0a494 !important;
+      font-size: 10px !important;
+      font-weight: 500 !important;
+      letter-spacing: 0.07em !important;
+      margin-bottom: 7px !important;
+      text-transform: uppercase !important;
+    }
+
+    #root > * {
+      flex: 1 1 auto;
+      min-height: 0;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .font-mono,
+    [class*="font-mono"] {
+      font-variant-numeric: tabular-nums;
+      line-height: normal !important;
+    }
   }
 }
 

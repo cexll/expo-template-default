@@ -30,19 +30,14 @@ export function SecondaryPageHeader({
   };
 
   return (
-    <View className={`mt-4 flex-row items-center ${className ?? ''}`}>
+    <View className={`flex-row items-center justify-between border-b border-border-strong bg-nav-bg px-[18px] pb-[10px] pt-[13px] ${className ?? ''}`}>
       <View className="flex-1 items-start">
-        <Pressable
-          accessibilityLabel={accessibilityLabel}
-          accessibilityRole="button"
-          className="rounded-full border border-neutral-bg bg-card px-3 py-2"
-          onPress={handleBack}
-        >
-          <Text className="text-sm font-semibold text-primary">← {backLabel}</Text>
+        <Pressable accessibilityLabel={accessibilityLabel} accessibilityRole="button" onPress={handleBack}>
+          <Text className="text-xs font-normal text-muted">← {backLabel}</Text>
         </Pressable>
       </View>
 
-      <Text className="px-3 text-sm font-semibold text-primary">{title}</Text>
+      <Text className="px-3 font-serif text-sm font-normal text-primary">{title}</Text>
 
       <View className="flex-1 items-end">{rightSlot ?? <View className="min-w-[72px]" />}</View>
     </View>

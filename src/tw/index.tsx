@@ -21,6 +21,7 @@ import {
 
 export type ViewProps = RNViewProps & {
   className?: string;
+  dataSet?: Record<string, string>;
 };
 
 export function View(props: ViewProps): ReactElement {
@@ -29,6 +30,7 @@ export function View(props: ViewProps): ReactElement {
 
 export type TextProps = RNTextProps & {
   className?: string;
+  dataSet?: Record<string, string>;
 };
 
 export function Text(props: TextProps): ReactElement {
@@ -37,6 +39,7 @@ export function Text(props: TextProps): ReactElement {
 
 export type PressableProps = RNPressableProps & {
   className?: string;
+  dataSet?: Record<string, string>;
 };
 
 export type ImageProps = RNImageProps & {
@@ -58,6 +61,7 @@ export function Pressable(props: PressableProps): ReactElement {
 export type ScrollViewProps = RNScrollViewProps & {
   className?: string;
   contentContainerClassName?: string;
+  dataSet?: Record<string, string>;
 };
 
 export function ScrollView(props: ScrollViewProps): ReactElement {

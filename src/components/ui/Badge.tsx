@@ -9,7 +9,7 @@ type BadgeProps = {
 
 const variantStyles: Record<BadgeVariant, { bg: string; text: string }> = {
   increase: { bg: 'bg-increase-bg', text: 'text-increase-text' },
-  new: { bg: 'bg-new-bg', text: 'text-new-text' },
+  new: { bg: 'bg-blue-bg', text: 'text-blue-text' },
   stable: { bg: 'bg-stable-bg', text: 'text-stable-text' },
   neutral: { bg: 'bg-neutral-bg', text: 'text-neutral-text' },
 };
@@ -17,8 +17,8 @@ const variantStyles: Record<BadgeVariant, { bg: string; text: string }> = {
 export function Badge({ text, variant = 'neutral' }: BadgeProps) {
   const styles = variantStyles[variant];
   return (
-    <View className={`rounded-full px-3 py-1 ${styles.bg}`}>
-      <Text className={`text-xs font-medium ${styles.text}`}>{text}</Text>
+    <View className={`rounded-[14px] px-[7px] py-0.5 ${styles.bg}`}>
+      <Text className={`text-[10px] font-medium leading-none ${styles.text}`}>{text}</Text>
     </View>
   );
 }

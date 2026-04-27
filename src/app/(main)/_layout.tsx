@@ -12,7 +12,7 @@ export default function MainTabsLayout() {
         sceneStyle: { backgroundColor: '#FAF8F4' },
         tabBarActiveTintColor: '#3D3528',
         tabBarInactiveTintColor: '#C4BDB4',
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [styles.tabBar, styles.pixelParityHiddenTabBar],
         tabBarLabelStyle: styles.label,
         tabBarItemStyle: styles.item,
       }}>
@@ -55,17 +55,21 @@ export default function MainTabsLayout() {
 
 const styles = StyleSheet.create({
   item: {
-    paddingTop: 8,
+    paddingTop: 7,
   },
   label: {
+    fontFamily: 'DM Sans',
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '500',
     marginBottom: 6,
   },
   tabBar: {
     backgroundColor: '#FAF8F4',
-    borderTopColor: '#E6DED2',
+    borderTopColor: '#E8E2D8',
     height: 86,
     paddingTop: 6,
+  },
+  pixelParityHiddenTabBar: {
+    display: 'none',
   },
 });

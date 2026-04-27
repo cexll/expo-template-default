@@ -15,8 +15,14 @@ export default function Root({ children }: PropsWithChildren) {
         />
 
         {/* PWA Meta Tags */}
-        <meta name="theme-color" content="#208AEF" />
-        <meta name="description" content="A cross-platform app built with Expo" />
+        <meta name="theme-color" content="#F5F0E6" />
+        <meta name="description" content="结节档案" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap"
+          rel="stylesheet"
+        />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -38,6 +44,12 @@ export default function Root({ children }: PropsWithChildren) {
         <script
           dangerouslySetInnerHTML={{
             __html: `
+              if (document.fonts && document.fonts.load) {
+                ['DM Serif Display', 'DM Sans', 'DM Mono'].forEach(function (font) {
+                  document.fonts.load('12px "' + font + '"');
+                  document.fonts.load('500 12px "' + font + '"');
+                });
+              }
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function () {
                   navigator.serviceWorker

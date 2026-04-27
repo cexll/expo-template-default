@@ -29,6 +29,7 @@
     "update:production": "eas update --branch production",
     "prepare": "husky",
     "check": "npm run lint && npm run typecheck",
+    "pixel:diff": "node ./scripts/pixel-diff.js",
     "reset-project": "node ./scripts/reset-project.js"
   },
   "lint-staged": {

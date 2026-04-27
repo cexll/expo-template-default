@@ -7,16 +7,16 @@ type ButtonProps = PressableProps & {
 };
 
 export function Button({ title, variant = 'primary', fullWidth, ...props }: ButtonProps) {
-  const base = 'rounded-lg px-6 py-3 items-center justify-center';
+  const base = 'items-center justify-center rounded-[9px] px-6 py-[10px]';
   const widthClass = fullWidth ? 'w-full' : '';
   const variantClass =
     variant === 'primary' ? 'bg-primary' :
     variant === 'secondary' ? 'bg-neutral-bg' :
     'border border-primary bg-transparent';
   const textClass =
-    variant === 'primary' ? 'text-white font-semibold' :
-    variant === 'secondary' ? 'text-primary font-semibold' :
-    'text-primary font-semibold';
+    variant === 'primary' ? 'text-nav-bg text-xs font-medium' :
+    variant === 'secondary' ? 'text-primary text-xs font-medium' :
+    'text-primary text-xs font-medium';
 
   return (
     <Pressable className={`${base} ${widthClass} ${variantClass}`} {...props}>

@@ -8,10 +8,10 @@ type InputProps = TextInputProps & {
 export function Input({ label, error, ...props }: InputProps) {
   const hasError = typeof error === 'string' && error.trim().length > 0;
   return (
-    <View className="gap-1">
-      {label && <Text className="text-sm text-primary font-medium">{label}</Text>}
+    <View className="gap-[6px]">
+      {label && <Text className="text-[11px] font-medium text-muted">{label}</Text>}
       <TextInput
-        className={`rounded-lg border px-4 py-3 text-base text-primary ${hasError ? 'border-new-text' : 'border-neutral-bg'}`}
+        className={`rounded-[9px] border bg-card px-[14px] py-[11px] text-sm text-primary ${hasError ? 'border-new-text' : 'border-border-strong'}`}
         placeholderTextColor="#C4BDB4"
         {...props}
       />
