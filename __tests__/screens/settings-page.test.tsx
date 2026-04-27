@@ -8,12 +8,14 @@ import { listProfiles } from '@/lib/db/queries/profiles';
 import { useAuth } from '@/providers/auth-provider';
 
 const mockPush = jest.fn();
+const mockUseLocalSearchParams = jest.fn();
 
 jest.mock('expo-router', () => ({
   router: {
     push: mockPush,
     replace: jest.fn(),
   },
+  useLocalSearchParams: () => mockUseLocalSearchParams(),
 }));
 
 jest.mock('@/lib/api', () => ({
@@ -54,6 +56,27 @@ function renderWithQueryClient(node: React.ReactElement) {
 describe('SettingsPage UI parity', () => {
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  beforeEach(() => {
+    mockUseLocalSearchParams.mockReturnValue({});
+  });
+
+  it('renders UI-005 prototype settings state without stored profile/session data', async () => {
+    useAuthMock.mockReturnValue({
+      user: null,
+      signOut: jest.fn(),
+    } as any);
+    listProfilesMock.mockResolvedValue([]);
+    apiGetMock.mockResolvedValue({ plan: 'free', is_active: false, expires_at: null } as any);
+
+    mockUseLocalSearchParams.mockReturnValue({ prototypeUi005Seed: 'demo' });
+
+    renderWithQueryClient(<SettingsPage />);
+
+    expect(screen.getByText('本人、妈妈 · 共2人')).toBeTruthy();
+    expect(screen.getByText('免费版 · AI识别剩余0次 · 摘要导出剩余0次')).toBeTruthy();
+    expect(screen.getByText('升级')).toBeTruthy();
   });
 
   it('renders sectioned rows and shows a real subscription summary', async () => {
@@ -106,6 +129,39 @@ describe('SettingsPage UI parity', () => {
     await waitFor(() => {
       expect(screen.getByText('免费版 · AI识别剩余3次 · 摘要导出剩余1次')).toBeTruthy();
     });
+  });
+
+  it('matches the demo settings account, storage, notification, and subscription affordances', async () => {
+    useAuthMock.mockReturnValue({
+      user: { phone: '13888888888' },
+      signOut: jest.fn(),
+    } as any);
+
+    listProfilesMock.mockResolvedValue([
+      { id: 'p1', nickname: '本人' } as any,
+      { id: 'p2', nickname: '妈妈' } as any,
+      { id: 'p3', nickname: '爸爸' } as any,
+    ]);
+
+    apiGetMock.mockResolvedValue({
+      plan: 'free',
+      is_active: false,
+      ai_recognize_remaining: 3,
+      expires_at: null,
+    } as any);
+
+    renderWithQueryClient(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('本人、妈妈、爸爸 · 共3人')).toBeTruthy();
+    });
+
+    expect(screen.getByText('138****8888')).toBeTruthy();
+    expect(screen.getByText('已用 12MB')).toBeTruthy();
+    expect(screen.getByText('浏览器通知')).toBeTruthy();
+    expect(screen.getByText('zhang@example.com')).toBeTruthy();
+    expect(screen.getByText('升级')).toBeTruthy();
+    expect(screen.getByText('结节档案 v1.0.0 · 数据仅供参考，不构成诊断')).toBeTruthy();
   });
 });
 

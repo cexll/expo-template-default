@@ -6,6 +6,7 @@ import SubscriptionPage from '@/app/subscription';
 import SubscriptionSuccessPage from '@/app/subscription/success';
 import SettingsPage from '@/app/(main)/settings';
 import { api } from '@/lib/api';
+import { syncCloudArchiveIfEntitled } from '@/lib/cloud-sync';
 import {
   clearPendingSubscriptionOrderContext,
   savePendingSubscriptionOrderContext,
@@ -45,12 +46,17 @@ jest.mock('@/providers/auth-provider', () => ({
   useAuth: jest.fn(),
 }));
 
+jest.mock('@/lib/cloud-sync', () => ({
+  syncCloudArchiveIfEntitled: jest.fn(),
+}));
+
 const apiMock = api as unknown as {
   get: jest.Mock;
   post: jest.Mock;
 };
 
 const useAuthMock = useAuth as unknown as jest.Mock;
+const syncCloudArchiveIfEntitledMock = syncCloudArchiveIfEntitled as unknown as jest.Mock;
 
 function renderWithQueryClient(node: React.ReactElement) {
   const queryClient = new QueryClient({
@@ -69,6 +75,8 @@ describe('subscription order flow', () => {
   const originalLocalStorage = globalThis.localStorage;
 
   beforeEach(() => {
+    const expoRouter = require('expo-router') as { useLocalSearchParams: jest.Mock };
+    expoRouter.useLocalSearchParams.mockReturnValue({});
     const store = new Map<string, string>();
     // @ts-expect-error test shim
     globalThis.localStorage = {
@@ -98,6 +106,54 @@ describe('subscription order flow', () => {
     globalThis.localStorage = originalLocalStorage;
   });
 
+  it('renders UI-005 prototype subscription and success states without live API state', async () => {
+    const expoRouter = require('expo-router') as {
+      router: { push: jest.Mock };
+      useLocalSearchParams: jest.Mock;
+    };
+
+    expoRouter.useLocalSearchParams.mockReturnValue({ prototypeUi005Seed: 'demo' });
+    apiMock.get.mockResolvedValue({ plan: 'free', is_active: false, expires_at: null } as any);
+
+    renderWithQueryClient(<SubscriptionPage />);
+
+    expect(screen.getByText('升级会员')).toBeTruthy();
+    expect(screen.getByText('年度会员')).toBeTruthy();
+    expect(screen.getByText('微信支付')).toBeTruthy();
+    expect(screen.getByText('支付宝')).toBeTruthy();
+
+    fireEvent.press(screen.getByText('立即订阅'));
+
+    expect(apiMock.post).not.toHaveBeenCalled();
+    expect(expoRouter.router.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathname: '/subscription/success',
+        params: expect.objectContaining({
+          order_id: 'prototype-order-399',
+          prototypeUi005Seed: 'demo',
+        }),
+      })
+    );
+
+    expoRouter.useLocalSearchParams.mockReturnValue({
+      order_id: 'prototype-order-399',
+      plan: 'yearly',
+      provider: 'wechat',
+      amount: '399',
+      currency: 'CNY',
+      prototypeUi005Seed: 'demo',
+    });
+
+    renderWithQueryClient(<SubscriptionSuccessPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('订阅成功')).toBeTruthy();
+      expect(screen.getByText('已解锁会员权益')).toBeTruthy();
+      expect(screen.getByText('¥399.00')).toBeTruthy();
+      expect(screen.getByText('2026-12-31T00:00:00.000Z')).toBeTruthy();
+    });
+  });
+
   it('submits the selected plan/provider and navigates with order context', async () => {
     const expoRouter = require('expo-router') as {
       router: { push: jest.Mock };
@@ -117,6 +173,12 @@ describe('subscription order flow', () => {
         provider: 'alipay',
       });
     });
+
+    expect(screen.getByText('月度会员')).toBeTruthy();
+    expect(screen.getByText('按月订阅，随时取消')).toBeTruthy();
+    expect(screen.getByText('实付金额')).toBeTruthy();
+    expect(screen.getByText('订阅后自动续费，可随时在设置中取消')).toBeTruthy();
+    expect(screen.getByText('继续即同意《会员服务协议》')).toBeTruthy();
 
     expect(expoRouter.router.push).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -158,7 +220,7 @@ describe('subscription order flow', () => {
     expect(screen.queryByText('已解锁会员权益')).toBeNull();
   });
 
-  it('shows unlocked rights only after live premium status turns active', async () => {
+  it('refreshes pending order status and unlocks rights after backend callback activation', async () => {
     const expoRouter = require('expo-router') as {
       useLocalSearchParams: jest.Mock;
     };
@@ -183,25 +245,35 @@ describe('subscription order flow', () => {
         expiresAt: null,
       },
     });
-    apiMock.get.mockResolvedValue({
-      plan: 'yearly',
-      is_premium: true,
-      expires_at: '2026-12-31T00:00:00.000Z',
-    });
+    apiMock.get
+      .mockResolvedValueOnce({ plan: 'free', is_active: false, expires_at: null })
+      .mockResolvedValueOnce({
+        plan: 'yearly',
+        is_premium: true,
+        expires_at: '2026-12-31T00:00:00.000Z',
+        cloud_sync_enabled: true,
+      });
 
     renderWithQueryClient(<SubscriptionSuccessPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('订阅已生效')).toBeTruthy();
-      expect(screen.getByText('会员权益已可用，AI识别与摘要导出额度限制已解除')).toBeTruthy();
+      expect(screen.getByText('订单已创建')).toBeTruthy();
+      expect(screen.queryByText('已解锁会员权益')).toBeNull();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('订阅成功')).toBeTruthy();
+      expect(screen.getByText('会员权益已立即生效')).toBeTruthy();
+      expect(screen.getByText('感谢你支持结节档案')).toBeTruthy();
       expect(screen.getByText('¥399.00')).toBeTruthy();
       expect(screen.getByText('2026-12-31T00:00:00.000Z')).toBeTruthy();
       expect(screen.getByText('已解锁会员权益')).toBeTruthy();
       expect(screen.getByText('AI识别次数')).toBeTruthy();
-      expect(screen.getByText('云端同步备份')).toBeTruthy();
-      expect(screen.getByText('会员支持（开发中）')).toBeTruthy();
+      expect(screen.getByText('云端同步')).toBeTruthy();
+      expect(screen.getByText('已开启 ✓')).toBeTruthy();
     });
 
+    expect(apiMock.get).toHaveBeenCalledTimes(2);
     expect(screen.getAllByText('无限次 ✓')).toHaveLength(2);
   });
 
@@ -265,13 +337,27 @@ describe('subscription order flow', () => {
     expect(screen.queryByText('订阅已生效')).toBeNull();
   });
 
-  it('reads the current plan from subscription state on settings', async () => {
-    apiMock.get.mockResolvedValue({ plan: 'yearly', is_active: true, expires_at: null });
+  it('reads the current plan from subscription state on settings and exposes paid cloud sync', async () => {
+    apiMock.get.mockResolvedValue({
+      plan: 'yearly',
+      is_active: true,
+      expires_at: null,
+      cloud_sync_enabled: true,
+    });
+    syncCloudArchiveIfEntitledMock.mockResolvedValue({ skipped: false, syncedCount: 5 });
 
     renderWithQueryClient(<SettingsPage />);
 
     await waitFor(() => {
       expect(screen.getByText(/年度会员/)).toBeTruthy();
+      expect(screen.getByText('会员已开启 · 点击立即同步')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('云端同步'));
+
+    await waitFor(() => {
+      expect(syncCloudArchiveIfEntitledMock).toHaveBeenCalledWith(expect.objectContaining({ isCloudSyncEnabled: true }));
+      expect(screen.getByText('云端同步完成 · 5项')).toBeTruthy();
     });
   });
 

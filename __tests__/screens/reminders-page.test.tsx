@@ -7,15 +7,19 @@ import { listProfiles } from '@/lib/db/queries/profiles';
 import { listLesionsByProfile } from '@/lib/db/queries/lesions';
 import { createReminder, deactivateReminder, listActiveRemindersByProfile, updateReminder } from '@/lib/db/queries/reminders';
 import { listLatestExaminationsByProfile } from '@/lib/db/queries/examinations';
+import { api } from '@/lib/api';
 import { applyReminderSideEffects } from '@/lib/reminder-side-effects';
 
 const mockPush = jest.fn();
+
+const mockUseLocalSearchParams = jest.fn();
 
 jest.mock('expo-router', () => ({
   router: {
     push: mockPush,
     replace: jest.fn(),
   },
+  useLocalSearchParams: () => mockUseLocalSearchParams(),
 }));
 
 jest.mock('@/lib/db/queries/profiles', () => ({
@@ -41,6 +45,13 @@ jest.mock('@/lib/reminder-side-effects', () => ({
   applyReminderSideEffects: jest.fn(),
 }));
 
+jest.mock('@/lib/api', () => ({
+  api: {
+    get: jest.fn(),
+    post: jest.fn(),
+  },
+}));
+
 jest.mock('@/providers/active-profile-provider', () => ({
   useActiveProfile: () => ({
     activeProfileId: 'profile_1',
@@ -55,6 +66,8 @@ const listLatestExaminationsByProfileMock = jest.mocked(listLatestExaminationsBy
 const createReminderMock = jest.mocked(createReminder);
 const updateReminderMock = jest.mocked(updateReminder);
 const deactivateReminderMock = jest.mocked(deactivateReminder);
+const apiPostMock = jest.mocked(api.post);
+const apiGetMock = jest.mocked(api.get);
 const applyReminderSideEffectsMock = jest.mocked(applyReminderSideEffects);
 
 function renderWithQueryClient(node: React.ReactElement) {
@@ -84,10 +97,13 @@ describe('RemindersPage UI parity', () => {
   });
 
   beforeEach(() => {
+    mockUseLocalSearchParams.mockReturnValue({});
     applyReminderSideEffectsMock.mockResolvedValue({
       notification: { supported: false, permission: 'unsupported' },
       sync: { ok: true, sent: 1 },
     });
+    apiPostMock.mockResolvedValue({});
+    apiGetMock.mockResolvedValue({ reminders: [{ lesion_label: '左叶结节', next_exam_date: '2026-05-01' }] });
 
     listProfilesMock.mockResolvedValue([
       {
@@ -143,6 +159,24 @@ describe('RemindersPage UI parity', () => {
     ]);
   });
 
+  it('renders UI-005 prototype reminder state without stored profile data', async () => {
+    mockUseLocalSearchParams.mockReturnValue({ prototypeUi005Seed: 'demo' });
+    listProfilesMock.mockResolvedValue([]);
+    listLesionsByProfileMock.mockResolvedValue([]);
+    listActiveRemindersByProfileMock.mockResolvedValue([]);
+    listLatestExaminationsByProfileMock.mockResolvedValue([]);
+
+    renderWithQueryClient(<RemindersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('随访提醒')).toBeTruthy();
+      expect(screen.getByText('左叶中下段结节')).toBeTruthy();
+      expect(screen.getByText('右乳10点钟结节')).toBeTruthy();
+      expect(screen.getByText('右上叶前段结节')).toBeTruthy();
+      expect(screen.getAllByText('层级（规划）').length).toBeGreaterThan(0);
+    });
+  });
+
   it("splits reminders into '即将到期' and '其他提醒' and includes the unset reminder path", async () => {
     renderWithQueryClient(<RemindersPage />);
 
@@ -155,8 +189,9 @@ describe('RemindersPage UI parity', () => {
     expect(screen.getByText('右肺结节')).toBeTruthy();
 
     expect(screen.getByText('未设置')).toBeTruthy();
-    expect(screen.getByText('— 暂未生成')).toBeTruthy();
-    expect(screen.getByText('去新增记录 ›')).toBeTruthy();
+    expect(screen.getByText('提醒已开启 · 4层提醒')).toBeTruthy();
+    expect(screen.getByText('— 暂未设置')).toBeTruthy();
+    expect(screen.getByText('设置提醒 ›')).toBeTruthy();
 
     // Active reminder cards expose edit/deactivate affordances.
     expect(screen.getByText('修改日期 ›')).toBeTruthy();
@@ -179,6 +214,28 @@ describe('RemindersPage UI parity', () => {
     expect(updateReminderMock).not.toHaveBeenCalled();
     expect(createReminderMock).not.toHaveBeenCalled();
     expect(deactivateReminderMock).not.toHaveBeenCalled();
+  });
+
+  it('exposes a deterministic INT-003 sync/readback browser probe only when seeded', async () => {
+    mockUseLocalSearchParams.mockReturnValue({ prototypeInt003Seed: 'demo' });
+    apiGetMock.mockResolvedValueOnce({ reminders: [{ lesion_label: '左叶结节', next_exam_date: '2026-05-01' }] });
+
+    renderWithQueryClient(<RemindersPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('VAL-INT-003 浏览器证据探针')).toBeTruthy();
+      expect(screen.getByText('本地提醒：左叶结节 · ' + isoDaysFromNow(5) + ' · 自动推导')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('同步并读回后端提醒'));
+
+    await waitFor(() => {
+      expect(apiPostMock).toHaveBeenCalledWith('/api/v1/reminders/sync', {
+        reminders: [{ lesion_label: '左叶结节', next_exam_date: isoDaysFromNow(5) }],
+      });
+      expect(apiGetMock).toHaveBeenCalledWith('/api/v1/reminders');
+      expect(screen.getByText('后端读回：左叶结节 · 2026-05-01')).toBeTruthy();
+    });
   });
 
   it('retains success feedback after saving an updated reminder date', async () => {

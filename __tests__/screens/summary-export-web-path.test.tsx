@@ -121,7 +121,7 @@ describe('SummaryPage web export path', () => {
   it('uses the dedicated web renderer instead of view-shot capture', async () => {
     renderWithQueryClient(<SummaryPage />);
 
-    fireEvent.press(screen.getByText('导出为图片'));
+    fireEvent.press(screen.getByText('保存为图片'));
 
     await waitFor(() => {
       expect(mockRenderSummaryExportImage).toHaveBeenCalledWith(

@@ -9,6 +9,7 @@ export type SubscriptionStatus = {
   plan: SubscriptionPlan;
   isActive: boolean;
   expiresAt: string | null;
+  isCloudSyncEnabled?: boolean;
   featureRemaining?: Record<string, number>;
 };
 
@@ -141,10 +142,13 @@ export function normalizeSubscriptionStatus(raw: unknown, accountKey?: string | 
     }
   }
 
+  const cloudSyncEnabled = pickBoolean(record.cloud_sync_enabled) ?? pickBoolean(record.cloudSyncEnabled) ?? undefined;
+
   return {
     plan,
     isActive,
     expiresAt,
+    isCloudSyncEnabled: cloudSyncEnabled,
     featureRemaining: Object.keys(featureRemaining).length > 0 ? featureRemaining : undefined,
   };
 }
@@ -163,6 +167,10 @@ export function canUseFeature(status: SubscriptionStatus, feature: SubscriptionF
   const remaining = status.featureRemaining?.[feature];
   if (typeof remaining === 'number') return remaining > 0;
   return true;
+}
+
+export async function consumeSubscriptionQuota(feature: SubscriptionFeatureKey) {
+  return api.post<unknown>('/api/v1/subscription/quota/consume', { quota_type: feature });
 }
 
 export function useSubscriptionStatus(accountKey?: string | null) {

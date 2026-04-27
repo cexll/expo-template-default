@@ -10,7 +10,12 @@ export const PREMIUM_UNLOCKED_RIGHTS = [
   { label: '云端同步备份', value: '会员支持（开发中）', tone: 'neutral' as const },
 ] as const;
 
-export const PAYWALL_MEMBER_FEATURES = PREMIUM_UNLOCKED_RIGHTS.map((item) => `${item.label}${item.value ? ` · ${item.value}` : ''}`);
+export const PAYWALL_MEMBER_FEATURES = [
+  '无限次 AI 识别，无需等待下月',
+  '无限档案人、无限病灶管理',
+  '云端加密备份，多设备同步',
+  '无限次就诊摘要导出',
+] as const;
 
 function pickAmountValue(amount: number | string | null | undefined) {
   if (typeof amount === 'number' && Number.isFinite(amount)) return amount;

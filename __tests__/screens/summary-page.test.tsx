@@ -70,6 +70,26 @@ describe('SummaryPage UI contract basics', () => {
     } as any);
   });
 
+  it('renders UI-005 prototype review summary state without stored profile data', () => {
+    const { useLocalSearchParams } = require('expo-router');
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ profileId: 'prototype-profile-self', prototypeUi005Seed: 'demo' });
+
+    mockUseProfile.mockReturnValue({ data: undefined, isLoading: false, isFetching: false });
+    mockUseLesions.mockReturnValue({ data: [] });
+    mockUseActiveReminders.mockReturnValue({ data: [] });
+    mockUseSubscriptionStatus.mockReturnValue({ data: undefined, isLoading: false });
+    mockUseQueries.mockReturnValue([]);
+
+    renderWithQueryClient(<SummaryPage />);
+
+    expect(screen.getByText('本人的就诊摘要')).toBeTruthy();
+    expect(screen.getByText('左叶中下段结节')).toBeTruthy();
+    expect(screen.getByText('右乳10点钟结节')).toBeTruthy();
+    expect(screen.getByText('右上叶前段结节')).toBeTruthy();
+    expect(screen.getByText('本摘要由「结节档案」生成，仅供医生参考，不构成诊断意见。')).toBeTruthy();
+    expect(screen.getByText('保存为图片')).toBeTruthy();
+  });
+
   it('rejects an invalid profile id', () => {
     const { useLocalSearchParams } = require('expo-router');
     (useLocalSearchParams as jest.Mock).mockReturnValue({});
@@ -146,6 +166,25 @@ describe('SummaryPage UI contract basics', () => {
 
     expect(screen.getByText('建议复查')).toBeTruthy();
     expect(screen.getByText(/2026-05-01/)).toBeTruthy();
+  });
+
+  it('renders the demo footer actions for saving and sharing the visit summary', () => {
+    const { useLocalSearchParams } = require('expo-router');
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ profileId: 'profile-1' });
+
+    mockUseSubscriptionStatus.mockReturnValue({ data: { isActive: true }, isLoading: false });
+    mockUseProfile.mockReturnValue({
+      data: { id: 'profile-1', nickname: '张女士', gender: 'female', birth_year: 1990, avatar_uri: null, sort_order: 0 },
+      isLoading: false,
+      isFetching: false,
+    });
+    mockUseLesions.mockReturnValue({ data: [] });
+    mockUseActiveReminders.mockReturnValue({ data: [] });
+    mockUseQueries.mockReturnValue([]);
+
+    renderWithQueryClient(<SummaryPage />);
+
+    expect(screen.getByText('保存为图片')).toBeTruthy();
   });
 
   it('degrades single-record lesions to raw-value mode without change rows', () => {

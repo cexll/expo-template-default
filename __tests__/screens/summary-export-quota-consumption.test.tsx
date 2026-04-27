@@ -148,15 +148,15 @@ describe('SummaryPage export quota consumption', () => {
       expect(queryClient.getQueryData(subscriptionKeys.status('user-a'))).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('导出为图片'));
+    fireEvent.press(screen.getByText('保存为图片'));
     await waitFor(() => expect(mockShareAsync).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(readLocalSummaryExportUsed(formatLocalMonth(), 'user-a')).toBe(1));
 
-    fireEvent.press(screen.getByText('导出为图片'));
+    fireEvent.press(screen.getByText('保存为图片'));
     await waitFor(() => expect(mockShareAsync).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(readLocalSummaryExportUsed(formatLocalMonth(), 'user-a')).toBe(2));
 
-    fireEvent.press(screen.getByText('导出为图片'));
+    fireEvent.press(screen.getByText('保存为图片'));
     await waitFor(() => {
       expect(screen.getByText('升级解锁')).toBeTruthy();
     });
@@ -201,7 +201,7 @@ describe('SummaryPage export quota consumption', () => {
       expect(queryClient.getQueryData(subscriptionKeys.status('user-a'))).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('导出为图片'));
+    fireEvent.press(screen.getByText('保存为图片'));
 
     await waitFor(() => expect(mockShareAsync).toHaveBeenCalledTimes(1));
     expect(screen.queryByText('升级解锁')).toBeNull();
@@ -238,13 +238,13 @@ describe('SummaryPage export quota consumption', () => {
     const firstRender = renderWithQueryClient(<SummaryPage />);
 
     await waitFor(() => {
-      expect(firstRender.queryByText('导出为图片')).toBeTruthy();
+      expect(firstRender.queryByText('保存为图片')).toBeTruthy();
       expect(firstRender.queryClient.getQueryData(subscriptionKeys.status('user-a'))).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('导出为图片'));
+    fireEvent.press(screen.getByText('保存为图片'));
     await waitFor(() => expect(mockShareAsync).toHaveBeenCalledTimes(1));
-    fireEvent.press(screen.getByText('导出为图片'));
+    fireEvent.press(screen.getByText('保存为图片'));
     await waitFor(() => expect(mockShareAsync).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(readLocalSummaryExportUsed(formatLocalMonth(), 'user-a')).toBe(2));
 
@@ -261,7 +261,7 @@ describe('SummaryPage export quota consumption', () => {
       expect(secondRender.queryClient.getQueryData(subscriptionKeys.status('user-b'))).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText('导出为图片'));
+    fireEvent.press(screen.getByText('保存为图片'));
     await waitFor(() => expect(mockShareAsync).toHaveBeenCalledTimes(3));
 
     expect(readLocalSummaryExportUsed(formatLocalMonth(), 'user-a')).toBe(2);

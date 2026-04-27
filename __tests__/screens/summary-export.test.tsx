@@ -118,7 +118,7 @@ describe('SummaryPage export', () => {
 
     renderWithQueryClient(<SummaryPage />);
 
-    fireEvent.press(screen.getByText('导出为图片'));
+    fireEvent.press(screen.getByText('保存为图片'));
 
     await waitFor(() => {
       expect(mockShareAsync).toHaveBeenCalledTimes(1);
@@ -147,7 +147,7 @@ describe('SummaryPage export', () => {
 
     renderWithQueryClient(<SummaryPage />);
 
-    fireEvent.press(screen.getByText('导出为图片'));
+    fireEvent.press(screen.getByText('保存为图片'));
 
     await waitFor(() => {
       expect(screen.getByText('升级解锁')).toBeTruthy();
