@@ -152,6 +152,30 @@ describe('UploadPage', () => {
     ]);
   });
 
+  it('renders deterministic prototype images and carries the review seed to recognition', () => {
+    const { useLocalSearchParams } = require('expo-router');
+
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      prototypeRecognitionSeed: 'demo',
+    });
+
+    render(<UploadPage />);
+
+    expect(screen.getByLabelText('删除图片1')).toBeTruthy();
+    expect(screen.getByLabelText('删除图片2')).toBeTruthy();
+
+    fireEvent.press(screen.getByText('开始识别'));
+
+    expect(mockRouterPush).toHaveBeenCalledTimes(1);
+    expect(mockRouterPush.mock.calls[0]?.[0]).toMatchObject({
+      pathname: '/record/recognize',
+      params: {
+        diseaseType: 'thyroid',
+        prototypeRecognitionSeed: 'demo',
+      },
+    });
+  });
+
   it('shows a back affordance and falls back to home when opened without history', () => {
     mockRouterCanGoBack.mockReturnValue(false);
 

@@ -1,6 +1,19 @@
-import { scoreLesionMatch } from '../../src/lib/db/matching';
+import { buildLesionMatchSelection, scoreLesionMatch } from '../../src/lib/db/matching';
 
 describe('scoreLesionMatch', () => {
+  it('preselects only >=80% confidence while keeping manual alternatives', () => {
+    const result = buildLesionMatchSelection([
+      { lesionId: 'l1', lesionLabel: '甲状腺左叶结节', score: 70, confidence: 100 },
+      { lesionId: 'l2', lesionLabel: '甲状腺右叶结节', score: 30, confidence: 43 },
+    ]);
+
+    expect(result).toEqual({
+      autoSelectedLesionId: 'l1',
+      alternatives: ['l1', 'l2'],
+      requiresManualSelection: false,
+    });
+  });
+
   const lesions = [
     { id: 'l1', label: '甲状腺左叶结节', location: '左叶中下段', latestSizeX: 7.5 },
     { id: 'l2', label: '甲状腺右叶结节', location: '右叶', latestSizeX: 5.0 },

@@ -102,10 +102,10 @@ describe('RecognizePage', () => {
     expect(screen.getByLabelText('报告图片预览1')).toBeTruthy();
     expect(screen.getByLabelText('报告图片预览2')).toBeTruthy();
 
-    expect(screen.getByDisplayValue('左叶中下段')).toBeTruthy();
-    expect(screen.getByDisplayValue('8.3')).toBeTruthy();
+    expect(screen.getByText('左叶中下段')).toBeTruthy();
+    expect(screen.getByText('8.3')).toBeTruthy();
 
-    fireEvent.press(screen.getByText('下一步 — 匹配病灶'));
+    fireEvent.press(screen.getByText('下一步：匹配病灶'));
 
     await waitFor(() => {
       expect(router.push).toHaveBeenCalledTimes(1);
@@ -175,7 +175,7 @@ describe('RecognizePage', () => {
       expect(screen.getByText('AI识别核对')).toBeTruthy();
     }, { timeout: 5000 });
 
-    fireEvent.press(screen.getByText('下一步 — 匹配病灶'));
+    fireEvent.press(screen.getByText('下一步：匹配病灶'));
 
     await waitFor(() => {
       expect(router.push).toHaveBeenCalledTimes(1);
@@ -307,7 +307,7 @@ describe('RecognizePage', () => {
       expect(screen.getByText('识别失败')).toBeTruthy();
     }, { timeout: 5000 });
 
-    fireEvent.press(screen.getByText('下一步 — 匹配病灶'));
+    fireEvent.press(screen.getByText('下一步：匹配病灶'));
 
     expect(router.push).not.toHaveBeenCalled();
   });
@@ -386,7 +386,7 @@ describe('RecognizePage', () => {
     fireEvent.changeText(screen.getByPlaceholderText('请输入大小(长)'), '6.2');
     fireEvent.press(screen.getByText('2'));
     fireEvent.press(screen.getByText('磨玻璃'));
-    fireEvent.press(screen.getByText('下一步 — 匹配病灶'));
+    fireEvent.press(screen.getByText('下一步：匹配病灶'));
 
     expect(router.push).not.toHaveBeenCalled();
   });
@@ -422,7 +422,7 @@ describe('RecognizePage', () => {
     fireEvent.changeText(screen.getByPlaceholderText('请输入大小(长)'), '6.2');
     fireEvent.press(screen.getByText('2'));
     fireEvent.press(screen.getByText('磨玻璃'));
-    fireEvent.press(screen.getByText('下一步 — 匹配病灶'));
+    fireEvent.press(screen.getByText('下一步：匹配病灶'));
 
     expect(router.push).not.toHaveBeenCalled();
     expect(mockReadAsStringAsync).not.toHaveBeenCalled();
@@ -456,16 +456,98 @@ describe('RecognizePage', () => {
       expect(screen.getByText('AI识别核对')).toBeTruthy();
     }, { timeout: 5000 });
 
-    fireEvent.press(screen.getByText('下一步 — 匹配病灶'));
+    fireEvent.press(screen.getByText('下一步：匹配病灶'));
     expect(router.push).not.toHaveBeenCalled();
 
     // Pending enum field still provides quick-pick chips.
     fireEvent.press(screen.getByText('磨玻璃'));
-    fireEvent.press(screen.getByText('下一步 — 匹配病灶'));
+    fireEvent.press(screen.getByText('下一步：匹配病灶'));
 
     await waitFor(() => {
       expect(router.push).toHaveBeenCalledTimes(1);
     }, { timeout: 5000 });
+  });
+
+  it('matches the demo OCR review hierarchy and expands enum quick-picks', async () => {
+    const { useLocalSearchParams, router } = require('expo-router');
+
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      images: JSON.stringify(['file:///a.png', 'file:///b.png']),
+      diseaseType: 'thyroid',
+    });
+
+    mockUseSubscriptionStatus.mockReturnValue({ data: { isActive: true }, isLoading: false });
+    mockReadAsStringAsync.mockResolvedValueOnce('BASE64_A');
+    mockReadAsStringAsync.mockResolvedValueOnce('BASE64_B');
+    mockApiPost.mockResolvedValue({
+      disease_type: 'thyroid',
+      fields: {
+        disease_type: { value: '甲状腺', confidence: 0.95 },
+        location: { value: '左叶中下段', confidence: 0.92 },
+        tirads: { value: '3', confidence: 0.88 },
+        echo_type: { value: '低回声', confidence: 0.86 },
+        border: { value: '清晰', confidence: 0.85 },
+      },
+    });
+
+    render(<RecognizePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('字段完整度')).toBeTruthy();
+    }, { timeout: 5000 });
+
+    expect(screen.getByText('超声报告')).toBeTruthy();
+    expect(screen.getByText('共2张 · 2024-03-15')).toBeTruthy();
+    expect(screen.getByText('已识别字段')).toBeTruthy();
+    expect(screen.getByText('5/7 已确认')).toBeTruthy();
+    expect(screen.getByText('结节类型')).toBeTruthy();
+    expect(screen.getByText('甲状腺')).toBeTruthy();
+    expect(screen.getByText('TI-RADS')).toBeTruthy();
+    expect(screen.getByText('3级')).toBeTruthy();
+    expect(screen.getByText('需要补填')).toBeTruthy();
+    expect(screen.getByText('大小')).toBeTruthy();
+    expect(screen.getAllByText('请补填').length).toBeGreaterThanOrEqual(2);
+
+    fireEvent.press(screen.getByText('下一步：匹配病灶'));
+    expect(router.push).not.toHaveBeenCalled();
+
+    fireEvent.press(screen.getAllByText('展开')[0]);
+    expect(screen.getByText('TI-RADS 分级')).toBeTruthy();
+    expect(screen.getByText('4a级')).toBeTruthy();
+    fireEvent.press(screen.getByText('4a级'));
+    expect(screen.getByDisplayValue('4a级')).toBeTruthy();
+  });
+
+  it('renders prototype recognition seed without backend AI and carries match seed forward', async () => {
+    const { useLocalSearchParams, router } = require('expo-router');
+
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      prototypeRecognitionSeed: 'demo',
+    });
+
+    mockUseSubscriptionStatus.mockReturnValue({ data: null, isLoading: true });
+
+    render(<RecognizePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('5/7 已确认')).toBeTruthy();
+    }, { timeout: 5000 });
+
+    expect(screen.getByText('超声报告')).toBeTruthy();
+    expect(screen.getByText('共2张 · 2024-03-15')).toBeTruthy();
+    expect(screen.getByText('左叶中下段')).toBeTruthy();
+    expect(mockApiPost).not.toHaveBeenCalled();
+
+    fireEvent.changeText(screen.getByPlaceholderText('请输入大小'), '8.3');
+    fireEvent.changeText(screen.getByPlaceholderText('请输入钙化'), '无');
+    fireEvent.press(screen.getByText('下一步：匹配病灶'));
+
+    await waitFor(() => {
+      expect(router.push).toHaveBeenCalledTimes(1);
+    }, { timeout: 5000 });
+
+    const arg = (router.push as jest.Mock).mock.calls[0]?.[0];
+    expect(arg.params.prototypeMatchSeed).toBe('demo');
   });
 
   it('progress counts only confirmed or high-confidence valid fields', async () => {
@@ -496,7 +578,7 @@ describe('RecognizePage', () => {
       expect(screen.getByText('3/10 已确认')).toBeTruthy();
     }, { timeout: 5000 });
 
-    fireEvent.press(screen.getByText('磨玻璃'));
+    fireEvent.press(screen.getAllByText('磨玻璃').at(-1)!);
 
     await waitFor(() => {
       expect(screen.getByText('4/10 已确认')).toBeTruthy();

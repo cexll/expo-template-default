@@ -24,6 +24,28 @@ jest.mock('@/lib/db/save-match-record', () => ({
   saveMatchRecordAtomic: (...args: any[]) => mockSaveMatchRecordAtomic(...args),
 }));
 
+const mockCreateLesion = jest.fn(async () => null);
+const mockCreateExamination = jest.fn(async () => null);
+const mockCreateReportImage = jest.fn(async () => null);
+const mockCreateReminder = jest.fn(async () => null);
+
+jest.mock('@/lib/db/queries/lesions', () => ({
+  createLesion: (...args: any[]) => mockCreateLesion(...args),
+}));
+
+jest.mock('@/lib/db/queries/examinations', () => ({
+  listExaminationsByLesion: jest.fn(),
+  createExamination: (...args: any[]) => mockCreateExamination(...args),
+}));
+
+jest.mock('@/lib/db/queries/report-images', () => ({
+  createReportImage: (...args: any[]) => mockCreateReportImage(...args),
+}));
+
+jest.mock('@/lib/db/queries/reminders', () => ({
+  createReminder: (...args: any[]) => mockCreateReminder(...args),
+}));
+
 const mockInvalidateQueries = jest.fn();
 const mockUseQueries = jest.fn();
 
@@ -52,6 +74,113 @@ describe('MatchPage', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('matches the demo lesion matching hierarchy and selection footer', async () => {
+    const { useLocalSearchParams } = require('expo-router');
+
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      diseaseType: 'thyroid',
+      images: JSON.stringify(['file:///a.png', 'file:///b.png']),
+      recognizedData: JSON.stringify({
+        location: '左叶中下段',
+        size_x: '8.3',
+        tirads: '3',
+        echo_type: '低回声',
+        border: '清晰',
+        exam_date: '2024-03-15',
+      }),
+    });
+
+    mockUseLesions.mockReturnValue({
+      data: [
+        {
+          id: 'lesion-1',
+          profile_id: 'profile-1',
+          disease_type: 'thyroid',
+          label: '左叶中下段结节',
+          location: '左叶中下段',
+          is_archived: 0,
+          created_at: '2026-04-13T00:00:00.000Z',
+          updated_at: '2026-04-13T00:00:00.000Z',
+        },
+        {
+          id: 'lesion-2',
+          profile_id: 'profile-1',
+          disease_type: 'thyroid',
+          label: '右叶结节',
+          location: '右叶',
+          is_archived: 0,
+          created_at: '2026-04-13T00:00:00.000Z',
+          updated_at: '2026-04-13T00:00:00.000Z',
+        },
+      ],
+    });
+
+    mockUseQueries.mockReturnValue([
+      { data: [{ size_x: 7.8, rads_grade: '3', exam_date: '2023-09-10' }] },
+      { data: [{ size_x: 5.2, rads_grade: '2', exam_date: '2023-03-05' }] },
+    ]);
+
+    render(<MatchPage />);
+
+    expect(screen.getByText('本次识别结果')).toBeTruthy();
+    expect(screen.getByText('甲状腺结节')).toBeTruthy();
+    expect(screen.getByText('左叶中下段 · TI-RADS 3级')).toBeTruthy();
+    expect(screen.getByText('8.3mm')).toBeTruthy();
+    expect(screen.getByText('低回声')).toBeTruthy();
+    expect(screen.getByText('AI 建议匹配')).toBeTruthy();
+    expect(screen.getByText('根据部位和大小自动匹配，请确认')).toBeTruthy();
+    expect(screen.getByText('AI推荐')).toBeTruthy();
+    expect(screen.getByText('匹配置信度')).toBeTruthy();
+    expect(screen.getByText('100%')).toBeTruthy();
+    expect(screen.getByText('或选择其他已有病灶')).toBeTruthy();
+    expect(screen.getByText('右叶结节')).toBeTruthy();
+    expect(screen.getByText('新建病灶')).toBeTruthy();
+    expect(screen.getByText('这是一个新发现的结节')).toBeTruthy();
+    expect(screen.getByText('已选择：左叶中下段结节')).toBeTruthy();
+    expect(screen.getByText('确认匹配，完成录入')).toBeTruthy();
+
+    fireEvent.press(screen.getByText('右叶结节'));
+    expect(screen.getByText('已选择：右叶结节')).toBeTruthy();
+
+    fireEvent.press(screen.getByText('新建病灶'));
+    expect(screen.getByText('已选择：新建病灶')).toBeTruthy();
+  });
+
+  it('renders prototype match seed with AI recommendation and manual selections without local database seed', async () => {
+    const { useLocalSearchParams } = require('expo-router');
+
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      diseaseType: 'thyroid',
+      prototypeMatchSeed: 'demo',
+      recognizedData: JSON.stringify({
+        location: '左叶中下段',
+        size_x: '8.3',
+        tirads: '3',
+        echo_type: '低回声',
+        border: '清晰',
+      }),
+    });
+
+    mockUseLesions.mockReturnValue({ data: [] });
+    mockUseQueries.mockReturnValue([]);
+
+    render(<MatchPage />);
+
+    expect(screen.getByText('AI 建议匹配')).toBeTruthy();
+    expect(screen.getByText('左叶中下段结节')).toBeTruthy();
+    expect(screen.getByText('AI推荐')).toBeTruthy();
+    expect(screen.getByText('100%')).toBeTruthy();
+    expect(screen.getByText('右叶结节')).toBeTruthy();
+    expect(screen.getByText('新建病灶')).toBeTruthy();
+    expect(screen.getByText('已选择：左叶中下段结节')).toBeTruthy();
+
+    fireEvent.press(screen.getByText('右叶结节'));
+    expect(screen.getByText('已选择：右叶结节')).toBeTruthy();
+
+    fireEvent.press(screen.getByText('新建病灶'));
+    expect(screen.getByText('已选择：新建病灶')).toBeTruthy();
   });
 
   it('auto-selects a >=80% recommendation and allows save without manual selection', async () => {
@@ -90,10 +219,10 @@ describe('MatchPage', () => {
 
     render(<MatchPage />);
 
-    expect(screen.getByText('AI推荐匹配')).toBeTruthy();
-    expect(screen.getByText('已选择: 甲状腺左叶结节')).toBeTruthy();
+    expect(screen.getByText('AI推荐')).toBeTruthy();
+    expect(screen.getByText('已选择：甲状腺左叶结节')).toBeTruthy();
 
-    fireEvent.press(screen.getByText('确认入库'));
+    fireEvent.press(screen.getByText('确认匹配，完成录入'));
 
     await waitFor(() => {
       expect(mockSaveMatchRecordAtomic).toHaveBeenCalledTimes(1);
@@ -137,8 +266,8 @@ describe('MatchPage', () => {
 
     render(<MatchPage />);
 
-    expect(screen.getByText('已选择: 请选择病灶')).toBeTruthy();
-    fireEvent.press(screen.getByText('确认入库'));
+    expect(screen.getByText('已选择：请选择病灶')).toBeTruthy();
+    fireEvent.press(screen.getByText('确认匹配，完成录入'));
 
     await waitFor(() => {
       expect(mockSaveMatchRecordAtomic).not.toHaveBeenCalled();
@@ -183,7 +312,7 @@ describe('MatchPage', () => {
 
     render(<MatchPage />);
 
-    fireEvent.press(screen.getByText('确认入库'));
+    fireEvent.press(screen.getByText('确认匹配，完成录入'));
 
     await waitFor(() => {
       expect(mockSaveMatchRecordAtomic).toHaveBeenCalledTimes(1);
@@ -233,7 +362,7 @@ describe('MatchPage', () => {
     render(<MatchPage />);
 
     fireEvent.press(screen.getByText('新建病灶'));
-    fireEvent.press(screen.getByText('确认入库'));
+    fireEvent.press(screen.getByText('确认匹配，完成录入'));
 
     await waitFor(() => {
       expect(mockSaveMatchRecordAtomic).toHaveBeenCalledTimes(1);
@@ -241,6 +370,48 @@ describe('MatchPage', () => {
 
     await waitFor(() => {
       expect(router.replace).toHaveBeenCalledWith('/lesion/lesion-new');
+    });
+  });
+
+  it('seeds deterministic prototype archive and navigates to saved detail evidence route', async () => {
+    const { useLocalSearchParams, router } = require('expo-router');
+
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      diseaseType: 'thyroid',
+      prototypeMatchSeed: 'demo',
+      images: JSON.stringify([{ uri: 'data:image/svg+xml,report', mimeType: 'image/svg+xml' }]),
+      recognizedData: JSON.stringify({
+        location: '左叶中下段',
+        size_x: '8.3',
+        size_y: '5.8',
+        size_z: '6.1',
+        tirads: '3',
+        echo_type: '低回声',
+        border: '清晰',
+        calcification: '无',
+        exam_date: '2024-03-15',
+        hospital: '重庆市第一人民医院',
+      }),
+    });
+
+    mockUseLesions.mockReturnValue({ data: [] });
+    mockUseQueries.mockReturnValue([]);
+
+    render(<MatchPage />);
+
+    fireEvent.press(screen.getByText('新建病灶'));
+    fireEvent.press(screen.getByText('确认匹配，完成录入'));
+
+    await waitFor(() => {
+      expect(mockCreateLesion).toHaveBeenCalledWith(expect.objectContaining({ id: 'lesion-1', label: '左叶中下段结节' }));
+    });
+    expect(mockCreateExamination).toHaveBeenCalledTimes(3);
+    expect(mockCreateReportImage).toHaveBeenCalledWith(expect.objectContaining({ examination_id: 'prototype-exam-latest' }));
+    expect(mockCreateReminder).toHaveBeenCalledWith(expect.objectContaining({ lesion_id: 'lesion-1', source: 'auto' }));
+    expect(mockSaveMatchRecordAtomic).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(router.replace).toHaveBeenCalledWith('/lesion/lesion-1?prototypeDetailSeed=demo&recordSaved=demo');
     });
   });
 
@@ -295,10 +466,10 @@ describe('MatchPage', () => {
     render(<MatchPage />);
 
     expect(screen.getByText('新增记录')).toBeTruthy();
-    expect(screen.getByText('已选择: 甲状腺左叶结节')).toBeTruthy();
+    expect(screen.getByText('已选择：甲状腺左叶结节')).toBeTruthy();
     expect(screen.queryByText('新建病灶')).toBeNull();
 
-    fireEvent.press(screen.getByText('确认入库'));
+    fireEvent.press(screen.getByText('确认匹配，完成录入'));
 
     await waitFor(() => {
       expect(mockSaveMatchRecordAtomic).toHaveBeenCalledTimes(1);

@@ -1,0 +1,275 @@
+import type { Examination, Lesion, Profile, Reminder } from '@/lib/db/types';
+import type { SubscriptionStatus } from '@/hooks/useSubscriptionStatus';
+
+export function isDemoSeed(value: unknown): boolean {
+  return (Array.isArray(value) ? value[0] : value) === 'demo';
+}
+
+export function hasPrototypeSeedParam(name: string) {
+  try {
+    const search = globalThis.location?.search ?? '';
+    const hash = globalThis.location?.hash ?? '';
+    return `${search}&${hash}`.includes(`${name}=demo`);
+  } catch {
+    return false;
+  }
+}
+
+export const PROTOTYPE_REVIEW_PROFILE: Profile = {
+  id: 'prototype-profile-self',
+  nickname: '本人',
+  gender: 'female',
+  birth_year: 1989,
+  avatar_uri: null,
+  sort_order: 0,
+  created_at: '2023-03-05T00:00:00.000Z',
+  updated_at: '2024-03-15T00:00:00.000Z',
+};
+
+export const PROTOTYPE_REVIEW_PROFILES: Profile[] = [
+  PROTOTYPE_REVIEW_PROFILE,
+  {
+    id: 'prototype-profile-mom',
+    nickname: '妈妈',
+    gender: 'female',
+    birth_year: 1963,
+    avatar_uri: null,
+    sort_order: 1,
+    created_at: '2023-03-05T00:00:00.000Z',
+    updated_at: '2024-03-15T00:00:00.000Z',
+  },
+];
+
+export const PROTOTYPE_REVIEW_LESIONS: Lesion[] = [
+  {
+    id: 'lesion-1',
+    profile_id: 'prototype-profile-self',
+    disease_type: 'thyroid',
+    label: '左叶中下段结节',
+    location: '左叶中下段',
+    is_archived: 0,
+    created_at: '2023-03-05T00:00:00.000Z',
+    updated_at: '2024-03-15T00:00:00.000Z',
+  },
+  {
+    id: 'lesion-2',
+    profile_id: 'prototype-profile-self',
+    disease_type: 'breast',
+    label: '右乳10点钟结节',
+    location: '右乳10点钟',
+    is_archived: 0,
+    created_at: '2023-09-10T00:00:00.000Z',
+    updated_at: '2024-03-15T00:00:00.000Z',
+  },
+  {
+    id: 'lesion-3',
+    profile_id: 'prototype-profile-self',
+    disease_type: 'lung',
+    label: '右上叶前段结节',
+    location: '右上叶前段',
+    is_archived: 0,
+    created_at: '2024-01-12T00:00:00.000Z',
+    updated_at: '2024-03-15T00:00:00.000Z',
+  },
+];
+
+export const PROTOTYPE_REVIEW_EXAMINATIONS: Record<string, Examination[]> = {
+  'lesion-1': [
+    {
+      id: 'prototype-exam-latest',
+      lesion_id: 'lesion-1',
+      exam_date: '2024-03-15',
+      hospital: '重庆市第一人民医院',
+      size_x: 8.3,
+      size_y: 5.8,
+      size_z: 6.1,
+      tirads: '3',
+      echo_type: '低回声',
+      border: '尚清',
+      calcification: '点状强回声',
+      blood_flow: '少量血流',
+      birads: null,
+      shape: null,
+      orientation: null,
+      lung_rads: null,
+      density: null,
+      morphology: null,
+      pleural_pull: null,
+      ai_raw_json: null,
+      notes: null,
+      created_at: '2024-03-15T00:00:00.000Z',
+      updated_at: '2024-03-15T00:00:00.000Z',
+    },
+    {
+      id: 'prototype-exam-previous',
+      lesion_id: 'lesion-1',
+      exam_date: '2023-09-10',
+      hospital: '重庆市第一人民医院',
+      size_x: 7.8,
+      size_y: 5.2,
+      size_z: 5.8,
+      tirads: '3',
+      echo_type: '低回声',
+      border: '尚清',
+      calcification: '无明显钙化',
+      blood_flow: '少量血流',
+      birads: null,
+      shape: null,
+      orientation: null,
+      lung_rads: null,
+      density: null,
+      morphology: null,
+      pleural_pull: null,
+      ai_raw_json: null,
+      notes: null,
+      created_at: '2023-09-10T00:00:00.000Z',
+      updated_at: '2023-09-10T00:00:00.000Z',
+    },
+    {
+      id: 'prototype-exam-baseline',
+      lesion_id: 'lesion-1',
+      exam_date: '2023-03-05',
+      hospital: '重庆市第一人民医院',
+      size_x: 7.1,
+      size_y: null,
+      size_z: null,
+      tirads: '3',
+      echo_type: '低回声',
+      border: '清楚',
+      calcification: '无明显钙化',
+      blood_flow: '未见明显血流',
+      birads: null,
+      shape: null,
+      orientation: null,
+      lung_rads: null,
+      density: null,
+      morphology: null,
+      pleural_pull: null,
+      ai_raw_json: null,
+      notes: null,
+      created_at: '2023-03-05T00:00:00.000Z',
+      updated_at: '2023-03-05T00:00:00.000Z',
+    },
+  ],
+  'lesion-2': [
+    {
+      id: 'prototype-exam-breast-latest',
+      lesion_id: 'lesion-2',
+      exam_date: '2024-03-15',
+      hospital: '重庆市第一人民医院',
+      size_x: 12,
+      size_y: 7,
+      size_z: null,
+      tirads: null,
+      echo_type: null,
+      border: null,
+      calcification: null,
+      blood_flow: null,
+      birads: '3',
+      shape: '椭圆形',
+      orientation: '平行',
+      lung_rads: null,
+      density: null,
+      morphology: null,
+      pleural_pull: null,
+      ai_raw_json: null,
+      notes: null,
+      created_at: '2024-03-15T00:00:00.000Z',
+      updated_at: '2024-03-15T00:00:00.000Z',
+    },
+    {
+      id: 'prototype-exam-breast-baseline',
+      lesion_id: 'lesion-2',
+      exam_date: '2023-09-10',
+      hospital: '重庆市第一人民医院',
+      size_x: 12,
+      size_y: null,
+      size_z: null,
+      tirads: null,
+      echo_type: null,
+      border: null,
+      calcification: null,
+      blood_flow: null,
+      birads: '3',
+      shape: '椭圆形',
+      orientation: '平行',
+      lung_rads: null,
+      density: null,
+      morphology: null,
+      pleural_pull: null,
+      ai_raw_json: null,
+      notes: null,
+      created_at: '2023-09-10T00:00:00.000Z',
+      updated_at: '2023-09-10T00:00:00.000Z',
+    },
+  ],
+  'lesion-3': [
+    {
+      id: 'prototype-exam-lung-latest',
+      lesion_id: 'lesion-3',
+      exam_date: '2024-03-15',
+      hospital: '重庆市第一人民医院',
+      size_x: 6.2,
+      size_y: null,
+      size_z: null,
+      tirads: null,
+      echo_type: null,
+      border: null,
+      calcification: null,
+      blood_flow: null,
+      birads: null,
+      shape: null,
+      orientation: null,
+      lung_rads: '2',
+      density: '磨玻璃',
+      morphology: '圆形',
+      pleural_pull: 0,
+      ai_raw_json: null,
+      notes: null,
+      created_at: '2024-03-15T00:00:00.000Z',
+      updated_at: '2024-03-15T00:00:00.000Z',
+    },
+  ],
+};
+
+export const PROTOTYPE_REVIEW_REMINDERS: Reminder[] = [
+  {
+    id: 'prototype-reminder-detail',
+    lesion_id: 'lesion-1',
+    next_exam_date: '2026-05-18',
+    source: 'auto',
+    is_active: 1,
+    created_at: '2024-03-15T00:00:00.000Z',
+    updated_at: '2024-03-15T00:00:00.000Z',
+  },
+  {
+    id: 'prototype-reminder-breast',
+    lesion_id: 'lesion-2',
+    next_exam_date: '2026-08-20',
+    source: 'manual',
+    is_active: 1,
+    created_at: '2024-03-15T00:00:00.000Z',
+    updated_at: '2024-03-15T00:00:00.000Z',
+  },
+];
+
+export const PROTOTYPE_REVIEW_SUBSCRIPTION_STATUS: SubscriptionStatus = {
+  plan: 'free',
+  isActive: false,
+  expiresAt: null,
+  featureRemaining: {
+    ai_recognize: 0,
+    summary_export: 0,
+  },
+};
+
+export const PROTOTYPE_REVIEW_PREMIUM_STATUS: SubscriptionStatus = {
+  plan: 'yearly',
+  isActive: true,
+  expiresAt: '2026-12-31T00:00:00.000Z',
+  isCloudSyncEnabled: true,
+  featureRemaining: {
+    ai_recognize: 999,
+    summary_export: 999,
+  },
+};

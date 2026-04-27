@@ -6,6 +6,22 @@ export interface MatchScore {
   confidence: number;
 }
 
+export type LesionMatchSelection = {
+  autoSelectedLesionId: string | null;
+  alternatives: string[];
+  requiresManualSelection: boolean;
+};
+
+export function buildLesionMatchSelection(matches: MatchScore[]): LesionMatchSelection {
+  const topMatch = matches[0] ?? null;
+  const autoSelectedLesionId = topMatch && topMatch.confidence >= 80 ? topMatch.lesionId : null;
+  return {
+    autoSelectedLesionId,
+    alternatives: matches.map((match) => match.lesionId),
+    requiresManualSelection: autoSelectedLesionId === null,
+  };
+}
+
 export function scoreLesionMatch(
   recognizedLocation: string,
   recognizedSizeX: number | null,

@@ -135,6 +135,20 @@ describe('ComparePage', () => {
     expect(screen.getByText('新增记录')).toBeTruthy();
   });
 
+  it('renders seeded prototype comparison state for browser review without local data', () => {
+    mockUseLocalSearchParams.mockReturnValue({ id: 'lesion-1', prototypeDetailSeed: 'demo' });
+    mockUseLesion.mockReturnValue({ data: undefined });
+    mockUseExaminations.mockReturnValue({ data: [] });
+    mockUseRemindersByLesion.mockReturnValue({ data: [] });
+
+    render(<ComparePage />);
+
+    expect(screen.getByText('左叶中下段结节')).toBeTruthy();
+    expect(screen.getByText('指标状态')).toBeTruthy();
+    expect(screen.getByText('2024-03 ★')).toBeTruthy();
+    expect(screen.getByText('下次建议复查日')).toBeTruthy();
+  });
+
   it('supports latest-3, latest-5, and custom range windows', () => {
     mockUseLocalSearchParams.mockReturnValue({ id: 'lesion-1' });
     mockUseLesion.mockReturnValue({
@@ -177,6 +191,62 @@ describe('ComparePage', () => {
     // Custom range excludes the latest "5级".
     expect(screen.queryByText('5级')).toBeNull();
     expect(screen.getByText('4级')).toBeTruthy();
+  });
+
+  it('renders the demo-style quantitative mini timeline latest marker', () => {
+    mockUseLocalSearchParams.mockReturnValue({ id: 'lesion-1' });
+    mockUseLesion.mockReturnValue({
+      data: {
+        id: 'lesion-1',
+        profile_id: 'profile-1',
+        disease_type: 'thyroid',
+        label: '左叶结节',
+        location: '左叶',
+        is_archived: 0,
+        created_at: '2026-04-13T00:00:00.000Z',
+        updated_at: '2026-04-13T00:00:00.000Z',
+      },
+    });
+    mockUseExaminations.mockReturnValue({
+      data: [
+        buildExam({ id: 'latest', exam_date: '2024-03-15', size_x: 8.3, tirads: '3' }),
+        buildExam({ id: 'prev', exam_date: '2023-09-10', size_x: 7.8, tirads: '3' }),
+        buildExam({ id: 'base', exam_date: '2023-03-05', size_x: 7.1, tirads: '3' }),
+      ],
+    });
+    mockUseRemindersByLesion.mockReturnValue({ data: [] });
+
+    render(<ComparePage />);
+
+    expect(screen.getByText('2024-03 ★')).toBeTruthy();
+  });
+
+  it('labels qualitative comparison section like the demo reference', () => {
+    mockUseLocalSearchParams.mockReturnValue({ id: 'lesion-1' });
+    mockUseLesion.mockReturnValue({
+      data: {
+        id: 'lesion-1',
+        profile_id: 'profile-1',
+        disease_type: 'thyroid',
+        label: '左叶结节',
+        location: '左叶',
+        is_archived: 0,
+        created_at: '2026-04-13T00:00:00.000Z',
+        updated_at: '2026-04-13T00:00:00.000Z',
+      },
+    });
+    mockUseExaminations.mockReturnValue({
+      data: [
+        buildExam({ id: 'latest', exam_date: '2024-03-15', size_x: 8.3, tirads: '3' }),
+        buildExam({ id: 'prev', exam_date: '2023-09-10', size_x: 7.8, tirads: '3' }),
+        buildExam({ id: 'base', exam_date: '2023-03-05', size_x: 7.1, tirads: '3' }),
+      ],
+    });
+    mockUseRemindersByLesion.mockReturnValue({ data: [] });
+
+    render(<ComparePage />);
+
+    expect(screen.getByText('指标状态')).toBeTruthy();
   });
 
   it('formats quantitative deltas vs previous and baseline', () => {

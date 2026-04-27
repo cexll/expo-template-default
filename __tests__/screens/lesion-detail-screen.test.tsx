@@ -31,6 +31,7 @@ jest.mock('@tanstack/react-query', () => {
 
 const mockUseLesion = jest.fn();
 const mockUseExaminations = jest.fn();
+const mockUseRemindersByLesion = jest.fn();
 
 jest.mock('@/hooks/useLesions', () => ({
   useLesion: (id: string) => mockUseLesion(id),
@@ -40,9 +41,14 @@ jest.mock('@/hooks/useExaminations', () => ({
   useExaminations: (lesionId: string) => mockUseExaminations(lesionId),
 }));
 
+jest.mock('@/hooks/useReminders', () => ({
+  useRemindersByLesion: (lesionId: string) => mockUseRemindersByLesion(lesionId),
+}));
+
 describe('LesionDetailPage', () => {
   beforeEach(() => {
     mockRouterCanGoBack.mockReturnValue(true);
+    mockUseRemindersByLesion.mockReturnValue({ data: [] });
   });
 
   afterEach(() => {
@@ -72,6 +78,24 @@ describe('LesionDetailPage', () => {
     expect(screen.getByText('甲状腺左叶结节')).toBeTruthy();
     expect(screen.getByText('暂无检查记录')).toBeTruthy();
     expect(screen.queryByText('检查记录')).toBeNull();
+  });
+
+  it('renders seeded prototype detail state for browser review without local data', () => {
+    mockUseLocalSearchParams.mockReturnValue({ id: 'lesion-1', prototypeDetailSeed: 'demo', recordSaved: 'demo' });
+    mockUseLesion.mockReturnValue({ data: undefined });
+    mockUseExaminations.mockReturnValue({ data: [] });
+    mockUseRemindersByLesion.mockReturnValue({ data: [] });
+    mockUseQuery.mockReturnValue({ data: [] });
+
+    render(<LesionDetailPage />);
+
+    expect(screen.getByText('左叶中下段结节')).toBeTruthy();
+    expect(screen.getByText('新检查记录已入库，时间轴已更新')).toBeTruthy();
+    expect(screen.getByText('检查记录')).toBeTruthy();
+    expect(screen.getAllByText('8.3mm').length).toBeGreaterThan(0);
+    expect(screen.getByText('下次建议复查')).toBeTruthy();
+    fireEvent.press(screen.getByText('查看对比'));
+    expect(mockRouterPush).toHaveBeenCalledWith('/lesion/lesion-1/compare?prototypeDetailSeed=demo');
   });
 
   it('renders latest values and timeline from real examination data', () => {
@@ -420,6 +444,96 @@ describe('LesionDetailPage', () => {
     view.rerender(<LesionDetailPage />);
 
     expect(screen.getByText('间隔 6个月')).toBeTruthy();
+  });
+
+  it('renders the demo-style next review card from active reminders', () => {
+    mockUseLocalSearchParams.mockReturnValue({ id: 'lesion-1' });
+    mockUseLesion.mockReturnValue({
+      data: {
+        id: 'lesion-1',
+        profile_id: 'profile-1',
+        disease_type: 'thyroid',
+        label: '甲状腺左叶结节',
+        location: '左叶中下段',
+        is_archived: 0,
+        created_at: '2026-04-13T00:00:00.000Z',
+        updated_at: '2026-04-13T00:00:00.000Z',
+      },
+    });
+    mockUseExaminations.mockReturnValue({
+      data: [
+        {
+          id: 'exam-latest',
+          lesion_id: 'lesion-1',
+          exam_date: '2024-03-15',
+          hospital: '重庆市第一人民医院',
+          size_x: 8.3,
+          size_y: 5.8,
+          size_z: 6.1,
+          tirads: '3',
+          echo_type: null,
+          border: null,
+          calcification: '点状强回声',
+          blood_flow: null,
+          birads: null,
+          shape: null,
+          orientation: null,
+          lung_rads: null,
+          density: null,
+          morphology: null,
+          pleural_pull: null,
+          ai_raw_json: null,
+          notes: null,
+          created_at: '2026-04-13T00:00:00.000Z',
+          updated_at: '2026-04-13T00:00:00.000Z',
+        },
+        {
+          id: 'exam-prev',
+          lesion_id: 'lesion-1',
+          exam_date: '2023-09-10',
+          hospital: '重庆市第一人民医院',
+          size_x: 7.8,
+          size_y: null,
+          size_z: null,
+          tirads: '3',
+          echo_type: null,
+          border: null,
+          calcification: '无',
+          blood_flow: null,
+          birads: null,
+          shape: null,
+          orientation: null,
+          lung_rads: null,
+          density: null,
+          morphology: null,
+          pleural_pull: null,
+          ai_raw_json: null,
+          notes: null,
+          created_at: '2026-04-13T00:00:00.000Z',
+          updated_at: '2026-04-13T00:00:00.000Z',
+        },
+      ],
+    });
+    mockUseQuery.mockReturnValue({ data: [] });
+    mockUseRemindersByLesion.mockReturnValue({
+      data: [
+        {
+          id: 'rem-1',
+          lesion_id: 'lesion-1',
+          next_exam_date: '2024-09-15',
+          source: 'auto',
+          is_active: 1,
+          created_at: '2026-04-13T00:00:00.000Z',
+          updated_at: '2026-04-13T00:00:00.000Z',
+        },
+      ],
+    });
+
+    render(<LesionDetailPage />);
+
+    expect(screen.getByText('下次建议复查')).toBeTruthy();
+    expect(screen.getByText('2024-09-15')).toBeTruthy();
+    expect(screen.getByLabelText('修改复查日期')).toBeTruthy();
   });
 
   it('shows persisted report image thumbnails for examinations', () => {
