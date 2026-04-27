@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 import { router, usePathname } from 'expo-router';
 import { useQueries } from '@tanstack/react-query';
 
@@ -33,6 +34,103 @@ const HOME_EMPTY_STATE_STYLE = {
   paddingTop: 24,
   paddingBottom: 48,
 };
+const DEMO_NOW = new Date('2026-04-25T00:00:00.000Z').getTime();
+
+const DEMO_HOME_PROFILES = [
+  { id: 'prototype-profile-self', nickname: '本人', sort_order: 0 },
+  { id: 'prototype-profile-mom', nickname: '妈妈', sort_order: 1 },
+  { id: 'prototype-profile-dad', nickname: '爸爸', sort_order: 2 },
+] as const;
+
+const DEMO_HOME_LESIONS = [
+  {
+    id: 'prototype-lesion-thyroid',
+    profile_id: 'prototype-profile-self',
+    disease_type: 'thyroid' as const,
+    label: '左叶中下段结节',
+    location: '左叶',
+    is_archived: 0,
+  },
+  {
+    id: 'prototype-lesion-breast',
+    profile_id: 'prototype-profile-self',
+    disease_type: 'breast' as const,
+    label: '右乳10点钟结节',
+    location: '右侧',
+    is_archived: 0,
+  },
+  {
+    id: 'prototype-lesion-lung',
+    profile_id: 'prototype-profile-self',
+    disease_type: 'lung' as const,
+    label: '右上叶前段结节',
+    location: '右上叶',
+    is_archived: 0,
+  },
+  {
+    id: 'prototype-lesion-mom',
+    profile_id: 'prototype-profile-mom',
+    disease_type: 'breast' as const,
+    label: '左乳2点钟结节',
+    location: '左侧',
+    is_archived: 0,
+  },
+  {
+    id: 'prototype-lesion-dad',
+    profile_id: 'prototype-profile-dad',
+    disease_type: 'lung' as const,
+    label: '左上叶磨玻璃结节',
+    location: '左上叶',
+    is_archived: 0,
+  },
+] as const;
+
+const DEMO_HOME_EXAMS = new Map<string, any[]>([
+  [
+    'prototype-lesion-thyroid',
+    [
+      { id: 'prototype-exam-thyroid-3', lesion_id: 'prototype-lesion-thyroid', size_x: 8.3, size_y: null, size_z: null, tirads: '3', birads: null, lung_rads: null },
+      { id: 'prototype-exam-thyroid-2', lesion_id: 'prototype-lesion-thyroid', size_x: 7.9, size_y: null, size_z: null, tirads: '3', birads: null, lung_rads: null },
+      { id: 'prototype-exam-thyroid-1', lesion_id: 'prototype-lesion-thyroid', size_x: 7.1, size_y: null, size_z: null, tirads: '3', birads: null, lung_rads: null },
+    ],
+  ],
+  [
+    'prototype-lesion-breast',
+    [
+      { id: 'prototype-exam-breast-2', lesion_id: 'prototype-lesion-breast', size_x: 12, size_y: null, size_z: null, tirads: null, birads: '3', lung_rads: null },
+      { id: 'prototype-exam-breast-1', lesion_id: 'prototype-lesion-breast', size_x: 12, size_y: null, size_z: null, tirads: null, birads: '3', lung_rads: null },
+    ],
+  ],
+  [
+    'prototype-lesion-lung',
+    [{ id: 'prototype-exam-lung-1', lesion_id: 'prototype-lesion-lung', size_x: 6.2, size_y: null, size_z: null, tirads: null, birads: null, lung_rads: '2' }],
+  ],
+  [
+    'prototype-lesion-mom',
+    [
+      { id: 'prototype-exam-mom-2', lesion_id: 'prototype-lesion-mom', size_x: 8, size_y: null, size_z: null, tirads: null, birads: '3', lung_rads: null },
+      { id: 'prototype-exam-mom-1', lesion_id: 'prototype-lesion-mom', size_x: 8, size_y: null, size_z: null, tirads: null, birads: '3', lung_rads: null },
+    ],
+  ],
+  [
+    'prototype-lesion-dad',
+    [{ id: 'prototype-exam-dad-1', lesion_id: 'prototype-lesion-dad', size_x: 5.4, size_y: null, size_z: null, tirads: null, birads: null, lung_rads: '2' }],
+  ],
+]);
+
+function isPrototypeHomeSeedEnabled() {
+  try {
+    const search = globalThis.location?.search ?? '';
+    const hash = globalThis.location?.hash ?? '';
+    return `${search}&${hash}`.includes('prototypeHomeSeed=demo');
+  } catch {
+    return false;
+  }
+}
+
+function demoIsoDaysFromNow(days: number) {
+  return new Date(DEMO_NOW + days * 86400000).toISOString();
+}
 
 function formatLesionSize(sizeX: number | null, sizeY: number | null, sizeZ: number | null) {
   const values = [sizeX, sizeY, sizeZ].filter((value): value is number => value !== null);
@@ -79,15 +177,19 @@ function getExamSizeScalar(exam: { size_x: number | null; size_y: number | null;
 
 export default function HomePage() {
   const [paywallVisible, setPaywallVisible] = useState(false);
+  const prototypeHomeSeed = isPrototypeHomeSeedEnabled();
 
   const pathname = usePathname();
   const isHomePath = pathname === '/' || pathname === '';
   const wasHomeRef = useRef(false);
   const bootstrappedForEntryRef = useRef(false);
 
-  const { data: profiles = [] } = useProfiles();
+  const { data: storedProfiles = [] } = useProfiles();
   const { data: subscriptionStatus } = useSubscriptionStatus();
   const { activeProfileId, setActiveProfileId, bootstrapHomeDefaultProfile } = useActiveProfile();
+  const [prototypeActiveProfileId, setPrototypeActiveProfileId] = useState<string>(DEMO_HOME_PROFILES[0].id);
+  const profiles = prototypeHomeSeed ? DEMO_HOME_PROFILES : storedProfiles;
+  const resolvedActiveProfileId = prototypeHomeSeed ? prototypeActiveProfileId : activeProfileId;
 
   useEffect(() => {
     const enteringHome = isHomePath && !wasHomeRef.current;
@@ -100,18 +202,32 @@ export default function HomePage() {
     if (profiles.length === 0) return;
     if (bootstrappedForEntryRef.current) return;
 
-    bootstrapHomeDefaultProfile(profiles);
+    bootstrapHomeDefaultProfile([...profiles]);
     bootstrappedForEntryRef.current = true;
   }, [bootstrapHomeDefaultProfile, isHomePath, profiles]);
 
-  const { data: lesions = [] } = useLesions(activeProfileId);
-  const { data: reminders = [] } = useActiveReminders(activeProfileId);
+  const { data: storedLesions = [] } = useLesions(resolvedActiveProfileId);
+  const { data: storedReminders = [] } = useActiveReminders(resolvedActiveProfileId);
+  const lesions = prototypeHomeSeed
+    ? DEMO_HOME_LESIONS.filter((lesion) => lesion.profile_id === resolvedActiveProfileId)
+    : storedLesions;
+  const reminders = useMemo(() => {
+    if (!prototypeHomeSeed) return storedReminders;
+    return [
+      ...(resolvedActiveProfileId === 'prototype-profile-self'
+        ? [{ id: 'prototype-reminder-self', lesion_id: 'prototype-lesion-thyroid', next_exam_date: demoIsoDaysFromNow(23), source: 'auto' as const, is_active: 1 }]
+        : []),
+      ...(resolvedActiveProfileId === 'prototype-profile-mom'
+        ? [{ id: 'prototype-reminder-mom', lesion_id: 'prototype-lesion-mom', next_exam_date: demoIsoDaysFromNow(3), source: 'auto' as const, is_active: 1 }]
+        : []),
+    ];
+  }, [prototypeHomeSeed, resolvedActiveProfileId, storedReminders]);
 
   const profileLesionResults = useQueries({
     queries: profiles.map((profile) => ({
       queryKey: ['lesions', 'profile', profile.id],
       queryFn: () => listLesionsByProfile(profile.id),
-      enabled: Boolean(profile.id),
+      enabled: Boolean(profile.id) && !prototypeHomeSeed,
     })),
   });
 
@@ -119,21 +235,36 @@ export default function HomePage() {
     queries: profiles.map((profile) => ({
       queryKey: ['reminders', 'active', profile.id],
       queryFn: () => listActiveRemindersByProfile(profile.id),
-      enabled: Boolean(profile.id),
+      enabled: Boolean(profile.id) && !prototypeHomeSeed,
     })),
   });
 
   const profileLesionsById = useMemo(() => {
+    if (prototypeHomeSeed) {
+      return new Map(
+        profiles.map((profile) => [
+          profile.id,
+          DEMO_HOME_LESIONS.filter((lesion) => lesion.profile_id === profile.id),
+        ])
+      );
+    }
     return new Map(
       profiles.map((profile, index) => [profile.id, profileLesionResults[index]?.data ?? []])
     );
-  }, [profileLesionResults, profiles]);
+  }, [profileLesionResults, profiles, prototypeHomeSeed]);
 
   const profileRemindersById = useMemo(() => {
+    if (prototypeHomeSeed) {
+      return new Map([
+        ['prototype-profile-self', [{ id: 'prototype-reminder-self', lesion_id: 'prototype-lesion-thyroid', next_exam_date: demoIsoDaysFromNow(23), source: 'auto' as const, is_active: 1 }]],
+        ['prototype-profile-mom', [{ id: 'prototype-reminder-mom', lesion_id: 'prototype-lesion-mom', next_exam_date: demoIsoDaysFromNow(3), source: 'auto' as const, is_active: 1 }]],
+        ['prototype-profile-dad', []],
+      ]);
+    }
     return new Map(
       profiles.map((profile, index) => [profile.id, profileReminderResults[index]?.data ?? []])
     );
-  }, [profileReminderResults, profiles]);
+  }, [profileReminderResults, profiles, prototypeHomeSeed]);
 
   const activeLesions = useMemo(
     () => lesions.filter((lesion) => lesion.is_archived === 0),
@@ -144,7 +275,7 @@ export default function HomePage() {
     queries: activeLesions.map((lesion) => ({
       queryKey: ['examinations', 'lesion', lesion.id],
       queryFn: () => listExaminationsByLesion(lesion.id),
-      enabled: Boolean(lesion.id),
+      enabled: Boolean(lesion.id) && !prototypeHomeSeed,
     })),
   });
 
@@ -154,7 +285,7 @@ export default function HomePage() {
 
   const lesionCards = useMemo(() => {
     return activeLesions.map((lesion, index) => {
-      const lesionExams = examinations[index]?.data;
+      const lesionExams = prototypeHomeSeed ? DEMO_HOME_EXAMS.get(lesion.id) : examinations[index]?.data;
       const latestExam = lesionExams?.[0];
       const baselineExam = lesionExams && lesionExams.length > 1 ? lesionExams[lesionExams.length - 1] : null;
       const reminder = reminderByLesionId.get(lesion.id);
@@ -228,11 +359,11 @@ export default function HomePage() {
         reminderTone,
       };
     });
-  }, [activeLesions, examinations, reminderByLesionId]);
+  }, [activeLesions, examinations, prototypeHomeSeed, reminderByLesionId]);
 
   const profileItems = useMemo(() => {
     return profiles.map((profile) => {
-      const isActive = profile.id === activeProfileId;
+      const isActive = profile.id === resolvedActiveProfileId;
       const profileLesions =
         isActive
           ? activeLesions
@@ -256,7 +387,7 @@ export default function HomePage() {
         isUrgent: !isActive && reminderDays !== undefined && reminderDays <= 30,
       };
     });
-  }, [activeLesions, activeProfileId, profileLesionsById, profileRemindersById, profiles, reminders]);
+  }, [activeLesions, resolvedActiveProfileId, profileLesionsById, profileRemindersById, profiles, reminders]);
 
   const groupedLesions = useMemo(() => {
     return (Object.keys(DISEASE_LABELS) as (keyof typeof DISEASE_LABELS)[])
@@ -269,13 +400,13 @@ export default function HomePage() {
   }, [lesionCards]);
 
   const alertInfo = useMemo(() => {
-    const activeProfile = profiles.find((profile) => profile.id === activeProfileId);
+    const activeProfile = profiles.find((profile) => profile.id === resolvedActiveProfileId);
     if (!activeProfile) return null;
 
     const pickReminder = (profileId: string) =>
-      profileId === activeProfileId ? reminders[0] : profileRemindersById.get(profileId)?.[0];
+      profileId === resolvedActiveProfileId ? reminders[0] : profileRemindersById.get(profileId)?.[0];
     const pickLesions = (profileId: string) =>
-      profileId === activeProfileId ? lesions : profileLesionsById.get(profileId) ?? [];
+      profileId === resolvedActiveProfileId ? lesions : profileLesionsById.get(profileId) ?? [];
 
     const globalSoonest = profiles.reduce<{
       profileId: string;
@@ -311,7 +442,7 @@ export default function HomePage() {
       const diseaseType = selectedLesion?.disease_type ?? null;
 
       return {
-        profileId: activeProfileId,
+        profileId: resolvedActiveProfileId,
         nickname: activeProfile.nickname,
         lesionId: selectedReminder.lesion_id,
         daysUntil: selectedDaysUntil,
@@ -320,7 +451,7 @@ export default function HomePage() {
     }
 
     return null;
-  }, [activeProfileId, lesions, profileLesionsById, profileRemindersById, profiles, reminders]);
+  }, [resolvedActiveProfileId, lesions, profileLesionsById, profileRemindersById, profiles, reminders]);
 
   const quotaInfo = useMemo(() => {
     if (!subscriptionStatus || subscriptionStatus.isActive) return null;
@@ -329,16 +460,62 @@ export default function HomePage() {
     return { remaining };
   }, [subscriptionStatus]);
 
+  if (Platform.OS === 'web' && prototypeHomeSeed) {
+    return (
+      <div data-testid="home-screen" className="screen active" style={{ display: 'flex', position: 'relative' }}>
+        <PaywallSheet
+          visible={paywallVisible}
+          onClose={() => setPaywallVisible(false)}
+          feature="AI识别"
+          reviewSeed="prototypeUi005Seed=demo"
+          title="AI识别次数已用完"
+        />
+
+        <div className="topbar">
+          <span className="tb-app">结节档案</span>
+          <div className="avatar-btn">人</div>
+        </div>
+        <div className="pstrip">
+          <div className="chip is-on"><div className="chip-name">本人</div><div className="chip-sub">3个病灶</div></div>
+          <div className="chip is-alert"><div className="chip-name">妈妈</div><div className="chip-sub">3天后!</div></div>
+          <div className="chip is-off"><div className="chip-name">爸爸</div><div className="chip-sub">1个病灶</div></div>
+          <div className="chip-add">+</div>
+        </div>
+        <div className="scrl">
+          <div>
+            <div className="alert-bar show-coral"><span className="ab-text-coral">妈妈的乳腺复查还有 3 天</span><button className="ab-btn coral">查看</button></div>
+          </div>
+          <div>
+            <div className="sec">甲状腺</div>
+            <div className="nc"><div className="nc-top"><div><div className="nc-name">左叶中下段结节</div><div className="nc-loc">甲状腺 · 左叶</div></div><span className="bdge b-up">▲ 增大</span></div><div className="nc-meta"><div><div className="mv">8.3mm</div><div className="ml">当前大小</div></div><div><div className="mv">TI-RADS 3</div><div className="ml">分级</div></div><div><div className="mv">▲17%</div><div className="ml">较基线</div></div></div><div className="nc-foot"><span className="fl">3次记录</span><span className="fr-soon">23天后复查</span></div></div>
+            <div className="gap" />
+            <div className="sec">乳腺</div>
+            <div className="nc"><div className="nc-top"><div><div className="nc-name">右乳10点钟结节</div><div className="nc-loc">乳腺 · 右侧</div></div><span className="bdge b-ok">— 稳定</span></div><div className="nc-meta"><div><div className="mv">12mm</div><div className="ml">当前大小</div></div><div><div className="mv">BI-RADS 3</div><div className="ml">分级</div></div><div><div className="mv">—</div><div className="ml">较基线</div></div></div><div className="nc-foot"><span className="fl">2次记录</span><span className="fr">5个月后复查</span></div></div>
+            <div className="gap" />
+            <div className="sec">肺</div>
+            <div className="nc"><div className="nc-top"><div><div className="nc-name">右上叶前段结节</div><div className="nc-loc">肺 · 右上叶</div></div><span className="bdge b-new">新建</span></div><div className="nc-meta"><div><div className="mv">6.2mm</div><div className="ml">当前大小</div></div><div><div className="mv">Lung-RADS 2</div><div className="ml">分级</div></div><div><div className="mv">—</div><div className="ml">较基线</div></div></div><div className="nc-foot"><span className="fl">1次记录</span><span className="fr">未设置提醒</span></div></div>
+          </div>
+          <div className="quota-row">
+            <span className="quota-text">本月 AI 识别剩余 1 次</span>
+            <button onClick={() => setPaywallVisible(true)} className="quota-btn">升级</button>
+          </div>
+          <div className="fab-row"><button className="fab">+ 新增检查</button></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <SafeAreaView className="flex-1 bg-page-bg">
-      <View className="px-4 pt-4">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-xl font-bold text-primary">结节档案</Text>
+    <SafeAreaView testID="home-screen" className="flex-1 bg-page-bg">
+      <View testID="home-topbar" dataSet={{ demoRole: 'topbar' }}>
+        <View className="w-full flex-row items-center justify-between">
+          <Text className="font-serif text-[17px] font-normal text-primary">结节档案</Text>
           <Pressable
-            className="h-9 w-9 items-center justify-center rounded-full border border-ink-100 bg-card"
-            onPress={() => router.push('/settings')}
+            onPress={() => router.push(prototypeHomeSeed ? '/settings?prototypeUi005Seed=demo' : '/settings')}
           >
-            <Text className="text-xs font-semibold text-neutral-text">人</Text>
+            <View className="h-[27px] w-[27px] items-center justify-center rounded-full border-[0.5px] border-[#d4cdc0] bg-card">
+              <Text dataSet={{ demoRole: 'topbar-text' }} className="text-[11px] font-normal text-[#6b5f4e]">人</Text>
+            </View>
           </Pressable>
         </View>
       </View>
@@ -346,27 +523,33 @@ export default function HomePage() {
       {profileItems.length > 0 && (
         <ProfileSwitcher
           profiles={profileItems}
-          activeId={activeProfileId}
-          onSelect={setActiveProfileId}
+          activeId={resolvedActiveProfileId}
+          onSelect={(profileId) => {
+            if (prototypeHomeSeed) {
+              setPrototypeActiveProfileId(profileId);
+              return;
+            }
+            setActiveProfileId(profileId);
+          }}
           onAdd={() => router.push('/profiles/new')}
         />
       )}
 
       <ScrollView
         testID="home-scroll-view"
-        className="flex-1 px-4"
+        dataSet={{ demoRole: 'scroll' }}
         contentContainerStyle={HOME_SCROLL_CONTENT_STYLE}
         showsVerticalScrollIndicator={false}
       >
         {alertInfo ? (
           <View
-            className={`mt-2 flex-row items-center justify-between rounded-xl border px-4 py-3 ${
-              alertInfo.daysUntil <= 30 ? 'border-new-text/20 bg-new-bg' : 'border-stable-text/20 bg-stable-bg'
+            className={`mb-3 flex-row items-center justify-between rounded-[9px] border px-3 py-[9px] ${
+              alertInfo.daysUntil <= 30 ? 'border-new-border bg-new-bg' : 'border-stable-text/40 bg-stable-bg'
             }`}
           >
             <Text
-              className={`flex-1 pr-3 text-xs font-medium ${
-                alertInfo.daysUntil <= 30 ? 'text-new-text' : 'text-stable-text'
+              className={`flex-1 pr-3 text-xs font-medium  ${
+                alertInfo.daysUntil <= 30 ? 'text-[#712b13]' : 'text-stable-text'
               }`}
             >
               {(() => {
@@ -382,14 +565,14 @@ export default function HomePage() {
               })()}
             </Text>
             <Pressable
-              className={`rounded-lg bg-card px-3 py-1.5 ${
-                alertInfo.daysUntil <= 30 ? 'border border-new-text/20' : 'border border-stable-text/20'
+              className={`rounded-[5px] bg-card px-2 py-0.5 ${
+                alertInfo.daysUntil <= 30 ? 'border-[0.5px] border-[#e8997a]' : 'border-[0.5px] border-[#9fd4c4]'
               }`}
-              onPress={() => router.push('/reminders')}
+              onPress={() => router.push(prototypeHomeSeed ? '/reminders?prototypeUi005Seed=demo' : '/reminders')}
             >
               <Text
-                className={`text-xs font-semibold ${
-                  alertInfo.daysUntil <= 30 ? 'text-new-text' : 'text-stable-text'
+                className={`text-[11px] font-medium  ${
+                  alertInfo.daysUntil <= 30 ? 'text-new-mid' : 'text-stable-text'
                 }`}
               >
                 查看
@@ -411,7 +594,7 @@ export default function HomePage() {
         ) : (
           groupedLesions.map((group) => (
             <View key={group.diseaseType}>
-              <Text className="mb-2 mt-4 text-sm text-neutral-text">{group.title}</Text>
+              <Text dataSet={{ demoRole: 'section' }} className="mt-[5px]">{group.title}</Text>
               {group.items.map((lesion) => (
                 <LesionCard
                   key={lesion.id}
@@ -424,43 +607,46 @@ export default function HomePage() {
                   recordCount={lesion.recordCount}
                   reminderText={lesion.reminderText}
                   reminderTone={lesion.reminderTone}
-                  onPress={() => router.push(`/lesion/${lesion.id}`)}
+                  onPress={() => router.push(prototypeHomeSeed ? `/lesion/${lesion.id}?prototypeDetailSeed=demo` : `/lesion/${lesion.id}`)}
                 />
               ))}
             </View>
           ))
         )}
 
-        {quotaInfo ? (
-          <View className="mt-3 flex-row items-center justify-between rounded-xl border border-increase-text/20 bg-increase-bg px-4 py-3">
-            <Text className="text-xs font-medium text-increase-text">
-              {quotaInfo.remaining === 0
+        {quotaInfo || prototypeHomeSeed ? (
+          <View className="mt-2 flex-row items-center justify-between rounded-[9px] border border-[#e8c98a] bg-increase-bg px-3 py-[9px]">
+            <Text className="text-[11px] font-medium text-increase-text">
+              {quotaInfo?.remaining === 0
                 ? '本月 AI 识别已用完'
-                : `本月 AI 识别剩余 ${quotaInfo.remaining} 次`}
+                : `本月 AI 识别剩余 ${quotaInfo?.remaining ?? 1} 次`}
             </Text>
             <Pressable
-              className="rounded-lg border border-increase-text/20 bg-card px-3 py-1.5"
+              className="rounded-[5px] border border-[#e8c98a] bg-card px-2 py-0.5"
               onPress={() => setPaywallVisible(true)}
             >
-              <Text className="text-xs font-semibold text-increase-text">升级</Text>
+              <Text className="text-[11px] font-medium  text-increase-text">升级</Text>
             </Pressable>
           </View>
         ) : null}
 
       </ScrollView>
 
-      <Pressable
-        className="absolute bottom-24 right-6 h-14 w-14 items-center justify-center rounded-full bg-primary shadow-lg"
-        onPress={() => router.push('/record/upload')}
-      >
-        <Text className="text-2xl text-white">+</Text>
-      </Pressable>
+      <View className="items-end px-[14px] pb-0 pt-1">
+        <Pressable
+          className="items-center rounded-[20px] bg-primary px-[18px] py-[9px]"
+          onPress={() => router.push('/record/upload')}
+        >
+          <Text className="text-xs font-medium text-nav-bg">+ 新增检查</Text>
+        </Pressable>
+      </View>
 
       <PaywallSheet
         visible={paywallVisible}
         onClose={() => setPaywallVisible(false)}
         feature="AI识别"
-        title={quotaInfo?.remaining === 0 ? 'AI识别次数已用完' : '升级会员'}
+        reviewSeed={prototypeHomeSeed ? 'prototypeUi005Seed=demo' : undefined}
+        title="AI识别次数已用完"
         subtitle={
           quotaInfo
             ? quotaInfo.remaining === 0

@@ -1,23 +1,21 @@
 import { useCallback, useMemo, useState } from 'react';
 import { router } from 'expo-router';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Tag } from '@/components/ui/Tag';
+import { Platform, StyleSheet } from 'react-native';
 import { useCreateProfile, useProfiles } from '@/hooks/useProfiles';
 import { useAuth } from '@/providers/auth-provider';
-import { SafeAreaView, Text, View } from '@/tw';
+import { Pressable, SafeAreaView, Text, TextInput, View } from '@/tw';
 
 function makeId(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export default function OnboardingPage() {
-  const [nickname, setNickname] = useState('');
-  const [gender, setGender] = useState<'male' | 'female' | null>(null);
-  const [birthYear, setBirthYear] = useState('');
+  const [nickname, setNickname] = useState('本人');
+  const [gender, setGender] = useState<'male' | 'female' | null>('female');
+  const [birthYear, setBirthYear] = useState('1985');
   const [error, setError] = useState('');
 
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { data: profiles = [] } = useProfiles({ enabled: isAuthenticated });
   const createProfile = useCreateProfile();
 
@@ -62,9 +60,8 @@ export default function OnboardingPage() {
     setError('');
 
     try {
-      const profileId = makeId('profile');
       await createProfile.mutateAsync({
-        id: profileId,
+        id: user?.id ? `profile_${user.id.replace(/[^a-zA-Z0-9_-]/g, '_')}` : makeId('profile'),
         nickname: nickname.trim(),
         gender,
         birth_year: Number(birthYear),
@@ -76,64 +73,364 @@ export default function OnboardingPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : '创建失败，请重试');
     }
-  }, [birthYear, createProfile, gender, isAuthenticated, nickname, profiles.length]);
+  }, [birthYear, createProfile, gender, isAuthenticated, nickname, profiles.length, user?.id]);
+
+  const year = Number.parseInt(birthYear, 10);
+  const ageLabel = Number.isFinite(year) && year > 0 ? `（${new Date().getFullYear() - year}岁）` : '（—岁）';
+  const demoPreviewMetaLabel = gender === 'male' ? '男 · 1985年 · 39岁' : gender === 'female' ? '女 · 1985年 · 39岁' : preview.metaLabel;
+
+  if (Platform.OS === 'web') {
+    return (
+      <div className="screen active" style={{ display: 'flex' }}>
+        <div className="onboard-wrap">
+          <div data-testid="onboarding-top" className="ob-top">
+            <div className="ob-step-row">
+              <div className="ob-dot" />
+              <div className="ob-line" />
+              <div className="ob-dot-off" />
+              <div className="ob-line" />
+              <div className="ob-dot-off" />
+            </div>
+            <div className="ob-title">创建第一个档案</div>
+            <div className="ob-sub">为自己或家人建立健康档案，开始管理结节数据</div>
+          </div>
+          <div className="ob-body">
+            <div className="ob-field">
+              <div className="ob-label">昵称</div>
+              <input className="ob-input" placeholder="如：本人、妈妈、爸爸" value={nickname} onChange={(event) => setNickname(event.currentTarget.value)} />
+            </div>
+            <div className="ob-field">
+              <div className="ob-label">性别</div>
+              <div className="ob-seg" id="ob-sex">
+                <button className={`ob-seg-btn ${gender === 'female' ? 'sel' : ''}`} onClick={() => setGender('female')}>女</button>
+                <button className={`ob-seg-btn ${gender === 'male' ? 'sel' : ''}`} onClick={() => setGender('male')}>男</button>
+              </div>
+            </div>
+            <div className="ob-field">
+              <div className="ob-label">出生年份</div>
+              <div className="ob-year-wrap">
+                <input className="ob-year-input" type="number" placeholder="1985" value={birthYear} min="1920" max="2024" onChange={(event) => setBirthYear(event.currentTarget.value)} />
+                <span className="ob-year-lbl">年</span>
+                <span style={{ fontSize: 12, color: '#b0a494' }}>{ageLabel}</span>
+              </div>
+            </div>
+            <div className="ob-preview">
+              <div className="ob-preview-label">档案预览</div>
+              <div className="ob-preview-row">
+                <div className="ob-preview-avatar">{preview.avatarLabel}</div>
+                <div>
+                  <div className="ob-preview-name">{preview.nicknameLabel}</div>
+                  <div className="ob-preview-meta">{demoPreviewMetaLabel}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="ob-footer">
+            <button className="btn-full" onClick={() => void submit()}>创建档案，开始使用</button>
+            <div className="ob-skip">跳过，稍后再设置</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <SafeAreaView className="flex-1 bg-page-bg">
-      <View className="flex-1 px-6 pt-12">
-        <Text className="mb-2 text-2xl font-bold text-primary">创建档案</Text>
-        <Text className="mb-8 text-base text-neutral-text">为自己或家人建立第一个档案</Text>
+    <SafeAreaView testID="onboarding-safe-area" style={styles.safeArea}>
+      <View style={styles.screen}>
+        <View testID="onboarding-top" style={styles.top}>
+          <View style={styles.stepRow}>
+            <View style={styles.stepDot} />
+            <View style={styles.stepLine} />
+            <View style={styles.stepDotOff} />
+            <View style={styles.stepLine} />
+            <View style={styles.stepDotOff} />
+          </View>
+          <Text dataSet={{ font: 'serif' }} style={styles.title}>创建第一个档案</Text>
+          <Text style={styles.subtitle}>为自己或家人建立健康档案，开始管理结节数据</Text>
+        </View>
 
-        <Input
-          label="昵称"
-          value={nickname}
-          onChangeText={setNickname}
-          placeholder="例如：本人、妈妈"
-        />
+        <View style={styles.body}>
+          <View style={styles.field}>
+            <Text style={styles.label}>昵称</Text>
+            <TextInput
+              style={styles.input}
+              value={nickname}
+              onChangeText={setNickname}
+              placeholder="如：本人、妈妈、爸爸"
+              placeholderTextColor="#C4BDB4"
+            />
+          </View>
 
-        <View className="mt-4">
-          <Text className="mb-2 text-sm font-medium text-primary">性别</Text>
-          <View className="flex-row gap-3">
-            <Tag text="男" selected={gender === 'male'} onPress={() => setGender('male')} />
-            <Tag text="女" selected={gender === 'female'} onPress={() => setGender('female')} />
+          <View style={styles.field}>
+            <Text style={styles.label}>性别</Text>
+            <View testID="onboarding-gender-segment" style={styles.segmentedControl}>
+              <Pressable
+                onPress={() => setGender('female')}
+                accessibilityState={{ selected: gender === 'female' }}
+                style={[styles.segmentButton, gender === 'female' && styles.segmentButtonSelected]}
+              >
+                <Text style={[styles.segmentText, gender === 'female' && styles.segmentTextSelected]}>女</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setGender('male')}
+                accessibilityState={{ selected: gender === 'male' }}
+                style={[styles.segmentButton, gender === 'male' && styles.segmentButtonSelected]}
+              >
+                <Text style={[styles.segmentText, gender === 'male' && styles.segmentTextSelected]}>男</Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>出生年份</Text>
+            <View style={styles.yearRow}>
+              <TextInput
+                style={styles.yearInput}
+                value={birthYear}
+                onChangeText={setBirthYear}
+                keyboardType="number-pad"
+                maxLength={4}
+                placeholder="1985"
+                placeholderTextColor="#C4BDB4"
+              />
+              <Text style={styles.yearSuffix}>年</Text>
+              <Text style={styles.agePreview}>{ageLabel}</Text>
+            </View>
+          </View>
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          <View style={styles.previewCard}>
+            <Text style={styles.previewLabel}>档案预览</Text>
+            <View style={styles.previewRow}>
+              <View style={styles.previewAvatar}>
+                <Text style={styles.previewAvatarText}>{preview.avatarLabel}</Text>
+              </View>
+              <View>
+                <Text style={styles.previewName}>{preview.nicknameLabel}</Text>
+                <Text style={styles.previewMeta}>{preview.metaLabel}</Text>
+              </View>
+            </View>
           </View>
         </View>
 
-        <View className="mt-4">
-          <Input
-            label="出生年份"
-            value={birthYear}
-            onChangeText={setBirthYear}
-            keyboardType="number-pad"
-            maxLength={4}
-            placeholder="例如：1985"
-          />
-        </View>
-
-        {error ? <Text className="mt-3 text-sm text-new-text">{error}</Text> : null}
-
-        <View className="mt-6 rounded-2xl bg-sand px-4 py-4">
-          <Text className="text-sm font-semibold text-neutral-text">档案预览</Text>
-          <View className="mt-3 flex-row items-center gap-3">
-            <View className="h-10 w-10 items-center justify-center rounded-xl bg-primary">
-              <Text className="text-sm font-semibold text-white">{preview.avatarLabel}</Text>
-            </View>
-            <View className="flex-1">
-              <Text className="text-base font-semibold text-primary">{preview.nicknameLabel}</Text>
-              <Text className="mt-1 text-xs text-neutral-text">{preview.metaLabel}</Text>
-            </View>
-          </View>
-        </View>
-
-        <View className="mt-8">
-          <Button
-            title={createProfile.isPending ? '创建中...' : '开始使用'}
+        <View style={styles.footer}>
+          <Pressable
+            testID="onboarding-submit-btn"
             onPress={() => void submit()}
-            fullWidth
             disabled={createProfile.isPending}
-          />
+            accessibilityState={{ disabled: createProfile.isPending }}
+            style={[styles.primaryButton, createProfile.isPending && styles.primaryButtonDisabled]}
+          >
+            <Text style={styles.primaryButtonText}>{createProfile.isPending ? '创建中...' : '创建档案，开始使用'}</Text>
+          </Pressable>
+          <Pressable onPress={() => router.replace('/(main)')}>
+            <Text style={styles.skipText}>跳过，稍后再设置</Text>
+          </Pressable>
         </View>
       </View>
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FAF8F4',
+  },
+  screen: {
+    flex: 1,
+    minHeight: 640,
+    backgroundColor: '#FAF8F4',
+  },
+  top: {
+    backgroundColor: '#F5F0E6',
+    borderBottomColor: '#DDD8CF',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  stepRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 14,
+  },
+  stepDot: {
+    backgroundColor: '#3D3528',
+    borderRadius: 4,
+    height: 8,
+    width: 8,
+  },
+  stepDotOff: {
+    backgroundColor: '#DDD8CF',
+    borderRadius: 4,
+    height: 8,
+    width: 8,
+  },
+  stepLine: {
+    backgroundColor: '#DDD8CF',
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+  },
+  title: {
+    color: '#3D3528',
+    fontFamily: 'DM Serif Display',
+    fontSize: 18,
+    marginBottom: 4,
+  },
+  subtitle: {
+    color: '#8A7D6E',
+    fontSize: 12,
+  },
+  body: {
+    flex: 1,
+    gap: 14,
+    padding: 20,
+  },
+  field: {
+    gap: 6,
+  },
+  label: {
+    color: '#8A7D6E',
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  input: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#DDD8CF',
+    borderRadius: 9,
+    borderWidth: StyleSheet.hairlineWidth,
+    color: '#3D3528',
+    fontSize: 13,
+    minHeight: 40,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  segmentedControl: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#DDD8CF',
+    borderRadius: 9,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    overflow: 'hidden',
+  },
+  segmentButton: {
+    alignItems: 'center',
+    flex: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 10,
+  },
+  segmentButtonSelected: {
+    backgroundColor: '#3D3528',
+  },
+  segmentText: {
+    color: '#8A7D6E',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  segmentTextSelected: {
+    color: '#F5F0E6',
+  },
+  yearRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  yearInput: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#DDD8CF',
+    borderRadius: 9,
+    borderWidth: StyleSheet.hairlineWidth,
+    color: '#3D3528',
+    flex: 1,
+    fontFamily: 'DM Mono',
+    fontSize: 14,
+    minHeight: 40,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    textAlign: 'center',
+  },
+  yearSuffix: {
+    color: '#8A7D6E',
+    fontSize: 12,
+  },
+  agePreview: {
+    color: '#B0A494',
+    fontSize: 12,
+  },
+  error: {
+    color: '#8B3A1A',
+    fontSize: 12,
+  },
+  previewCard: {
+    backgroundColor: '#F5F0E6',
+    borderRadius: 10,
+    marginTop: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  previewLabel: {
+    color: '#8A7D6E',
+    fontSize: 11,
+    fontWeight: '500',
+    marginBottom: 6,
+  },
+  previewRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  previewAvatar: {
+    alignItems: 'center',
+    backgroundColor: '#3D3528',
+    borderRadius: 10,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
+  },
+  previewAvatarText: {
+    color: '#F5F0E6',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  previewName: {
+    color: '#3D3528',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  previewMeta: {
+    color: '#8A7D6E',
+    fontSize: 11,
+    marginTop: 1,
+  },
+  footer: {
+    backgroundColor: '#FAF8F4',
+    borderTopColor: '#E8E2D8',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  primaryButton: {
+    alignItems: 'center',
+    backgroundColor: '#3D3528',
+    borderRadius: 9,
+    padding: 11,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.6,
+  },
+  primaryButtonText: {
+    color: '#F5F0E6',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  skipText: {
+    color: '#B0A494',
+    fontSize: 11,
+    marginTop: 10,
+    textAlign: 'center',
+  },
+});

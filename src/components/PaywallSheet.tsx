@@ -1,16 +1,17 @@
-import { Modal } from 'react-native';
+import { Modal, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { Button } from './ui/Button';
 import { PAYWALL_MEMBER_FEATURES } from '@/lib/subscription/catalog';
 import { Pressable, Text, View } from '@/tw';
 
-type PaywallSheetProps = {
+export type PaywallSheetProps = {
   visible: boolean;
   onClose: () => void;
   feature: string;
   title?: string;
   subtitle?: string;
   ctaLabel?: string;
+  reviewSeed?: string;
 };
 
 function FeatureRow({ text }: { text: string }) {
@@ -22,7 +23,7 @@ function FeatureRow({ text }: { text: string }) {
   );
 }
 
-export function PaywallSheet({ visible, onClose, feature, title, subtitle, ctaLabel }: PaywallSheetProps) {
+export function PaywallSheet({ visible, onClose, feature, title, subtitle, ctaLabel, reviewSeed }: PaywallSheetProps) {
   const resolvedKicker = '升级解锁';
   const resolvedHeadline =
     title ??
@@ -37,6 +38,41 @@ export function PaywallSheet({ visible, onClose, feature, title, subtitle, ctaLa
       ? '本月免费额度已用尽（5次/月）\n升级会员，享受无限次AI识别'
       : `本月${feature}免费额度已用尽\n升级会员后可无限使用`);
   const resolvedCta = ctaLabel ?? (feature === 'AI识别' ? '立即升级 · ¥399/年' : '查看会员方案');
+
+  if (Platform.OS === 'web' && visible) {
+    return (
+      <div className="paywall-overlay show" id="paywall">
+        <div className="paywall-sheet">
+          <button className="paywall-close" onClick={onClose}>×</button>
+          <div className="paywall-icon">✦</div>
+          <div className="paywall-title">{resolvedHeadline}</div>
+          <div className="paywall-sub">本月免费额度已用尽（5次/月）<br />升级会员，享受无限次AI识别</div>
+          <div className="paywall-features">
+            {PAYWALL_MEMBER_FEATURES.map((item) => (
+              <div className="pf-row" key={item}><div className="pf-dot" /><span className="pf-text">{item}</span></div>
+            ))}
+          </div>
+          <div className="paywall-price">
+            <span className="pw-price-lbl">年度会员</span>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <span className="pw-price-val">¥399 / 年</span>
+              <span className="pw-price-save">省17%</span>
+            </div>
+          </div>
+          <button
+            className="paywall-cta"
+            onClick={() => {
+              onClose();
+              router.push(reviewSeed ? `/subscription?${reviewSeed}` : '/subscription');
+            }}
+          >
+            {resolvedCta}
+          </button>
+          <button className="paywall-later" onClick={onClose}>先不了，继续免费版</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -83,7 +119,7 @@ export function PaywallSheet({ visible, onClose, feature, title, subtitle, ctaLa
               fullWidth
               onPress={() => {
                 onClose();
-                router.push('/subscription');
+                router.push(reviewSeed ? `/subscription?${reviewSeed}` : '/subscription');
               }}
             />
           </View>

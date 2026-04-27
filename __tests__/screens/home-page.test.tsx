@@ -182,8 +182,25 @@ describe('HomePage UI parity', () => {
     fireEvent.press(screen.getByText('升级'));
 
     await waitFor(() => {
-      expect(screen.getByText('升级解锁')).toBeTruthy();
+      expect(screen.getByText('AI识别次数已用完')).toBeTruthy();
     });
+    expect(screen.getByText('无限次 AI 识别，无需等待下月')).toBeTruthy();
+  });
+
+  it('renders demo active profile state and add-record entrypoint', async () => {
+    const { router } = require('expo-router');
+    renderWithQueryClient(<HomePage />);
+
+    await waitFor(() => {
+      expect(StyleSheet.flatten(screen.getByTestId('profile-switcher-chip-surface-profile_1').props.style)).toEqual(
+        expect.objectContaining({
+          backgroundColor: '#3D3528',
+        })
+      );
+    });
+
+    fireEvent.press(screen.getByText('+ 新增检查'));
+    expect(router.push).toHaveBeenCalledWith('/record/upload');
   });
 
   it('renders lesion card title/subtitle, metrics, record count, and reminder footer', async () => {

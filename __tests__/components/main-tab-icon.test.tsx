@@ -71,8 +71,8 @@ describe('MainTabIcon', () => {
       '"tintColor":"#3D3528"'
     );
     expect(StyleSheet.flatten(screen.getByTestId('main-tab-icon-home').props.style)).toMatchObject({
-      backgroundColor: '#EFE7DA',
-      borderColor: '#E6DED2',
+      backgroundColor: '#F5F0E6',
+      borderColor: '#DDD8CF',
     });
   });
 });

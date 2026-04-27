@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import OnboardingPage from '@/app/(auth)/onboarding';
@@ -30,25 +31,51 @@ describe('OnboardingPage', () => {
     jest.clearAllMocks();
   });
 
-  it('shows a live archive preview that updates as the user edits fields', async () => {
+  it('matches the demo onboarding form defaults and live archive preview', async () => {
     mockUseAuth.mockReturnValue({ isAuthenticated: true, isLoading: false, isNewUser: true });
     mockUseProfiles.mockReturnValue({ data: [] });
 
     render(<OnboardingPage />);
 
-    // Preview block should be visible.
-    expect(screen.getByText('档案预览')).toBeTruthy();
+    const flattenedTopStyle = StyleSheet.flatten(screen.getByTestId('onboarding-top').props.style);
+    const flattenedSegmentStyle = StyleSheet.flatten(screen.getByTestId('onboarding-gender-segment').props.style);
+    const flattenedPrimaryStyle = StyleSheet.flatten(screen.getByTestId('onboarding-submit-btn').props.style);
 
-    fireEvent.changeText(screen.getByPlaceholderText('例如：本人、妈妈'), '本人');
-    fireEvent.press(screen.getByText('男'));
-    fireEvent.changeText(screen.getByPlaceholderText('例如：1985'), '1985');
+    expect(flattenedTopStyle).toMatchObject({ backgroundColor: '#F5F0E6', paddingTop: 20, paddingBottom: 16 });
+    expect(flattenedSegmentStyle).toMatchObject({ backgroundColor: '#FFFFFF', borderRadius: 9, overflow: 'hidden' });
+    expect(flattenedPrimaryStyle).toMatchObject({ backgroundColor: '#3D3528', borderRadius: 9 });
+
+    expect(screen.getByText('创建第一个档案')).toBeTruthy();
+    expect(screen.getByText('为自己或家人建立健康档案，开始管理结节数据')).toBeTruthy();
+    expect(screen.getByText('昵称')).toBeTruthy();
+    expect(screen.getByPlaceholderText('如：本人、妈妈、爸爸')).toBeTruthy();
+    expect(screen.getByDisplayValue('本人')).toBeTruthy();
+    expect(screen.getByText('性别')).toBeTruthy();
+    expect(screen.getByText('女')).toBeTruthy();
+    expect(screen.getByText('男')).toBeTruthy();
+    expect(screen.getByText('出生年份')).toBeTruthy();
+    expect(screen.getByDisplayValue('1985')).toBeTruthy();
+    expect(screen.getByText('年')).toBeTruthy();
+    expect(screen.getByText('档案预览')).toBeTruthy();
+    expect(screen.getByText('创建档案，开始使用')).toBeTruthy();
+    expect(screen.getByText('跳过，稍后再设置')).toBeTruthy();
 
     const currentYear = new Date().getFullYear();
-    const expectedAge = currentYear - 1985;
+    const initialAge = currentYear - 1985;
+    expect(screen.getByText(`（${initialAge}岁）`)).toBeTruthy();
+    expect(screen.getByText(`女 · 1985年 · ${initialAge}岁`)).toBeTruthy();
+
+    fireEvent.changeText(screen.getByPlaceholderText('如：本人、妈妈、爸爸'), '妈妈');
+    fireEvent.press(screen.getByText('男'));
+    fireEvent.changeText(screen.getByDisplayValue('1985'), '1978');
+
+    const expectedAge = currentYear - 1978;
 
     await waitFor(() => {
-      expect(screen.getByText('本人')).toBeTruthy();
-      expect(screen.getByText(`男 · 1985年 · ${expectedAge}岁`)).toBeTruthy();
+      expect(screen.getByText('妈')).toBeTruthy();
+      expect(screen.getByText('妈妈')).toBeTruthy();
+      expect(screen.getByText(`男 · 1978年 · ${expectedAge}岁`)).toBeTruthy();
+      expect(screen.getByText(`（${expectedAge}岁）`)).toBeTruthy();
     });
   });
 
@@ -58,11 +85,11 @@ describe('OnboardingPage', () => {
 
     render(<OnboardingPage />);
 
-    fireEvent.changeText(screen.getByPlaceholderText('例如：本人、妈妈'), '本人');
+    fireEvent.changeText(screen.getByPlaceholderText('如：本人、妈妈、爸爸'), '本人');
     fireEvent.press(screen.getByText('男'));
-    fireEvent.changeText(screen.getByPlaceholderText('例如：1985'), '1985');
+    fireEvent.changeText(screen.getByDisplayValue('1985'), '1985');
 
-    fireEvent.press(screen.getByText('开始使用'));
+    fireEvent.press(screen.getByText('创建档案，开始使用'));
 
     await waitFor(() => {
       expect(mockMutateAsync).not.toHaveBeenCalled();
@@ -94,11 +121,11 @@ describe('OnboardingPage', () => {
 
     render(<OnboardingPage />);
 
-    fireEvent.changeText(screen.getByPlaceholderText('例如：本人、妈妈'), ' 本人 ');
+    fireEvent.changeText(screen.getByPlaceholderText('如：本人、妈妈、爸爸'), ' 本人 ');
     fireEvent.press(screen.getByText('男'));
-    fireEvent.changeText(screen.getByPlaceholderText('例如：1985'), '1985');
+    fireEvent.changeText(screen.getByDisplayValue('1985'), '1985');
 
-    fireEvent.press(screen.getByText('开始使用'));
+    fireEvent.press(screen.getByText('创建档案，开始使用'));
 
     await waitFor(() => {
       expect(mockMutateAsync).toHaveBeenCalledTimes(1);
