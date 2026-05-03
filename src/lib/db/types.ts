@@ -29,6 +29,7 @@ export interface Profile {
   birth_year: number;
   avatar_uri: string | null;
   sort_order: number;
+  sync_version?: number;
   created_at: string;
   updated_at: string;
 }
@@ -40,6 +41,7 @@ export interface Lesion {
   label: string;
   location: string;
   is_archived: number;
+  sync_version?: number;
   created_at: string;
   updated_at: string;
 }
@@ -66,6 +68,7 @@ export interface Examination {
   pleural_pull: number | null;
   ai_raw_json: string | null;
   notes: string | null;
+  sync_version?: number;
   created_at: string;
   updated_at: string;
 }
@@ -76,7 +79,12 @@ export interface ReportImage {
   uri: string;
   sort_order: number;
   mime_type: string | null;
+  object_key?: string | null;
+  size_bytes?: number;
+  sha256?: string | null;
+  sync_version?: number;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface Reminder {
@@ -85,6 +93,19 @@ export interface Reminder {
   next_exam_date: string;
   source: 'auto' | 'manual';
   is_active: number;
+  remind1m_sent?: number | null;
+  remind1w_sent?: number | null;
+  remind3d_sent?: number | null;
+  remind0d_sent?: number | null;
+  sync_version?: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface ArchiveTombstone {
+  entity_type: string;
+  local_id: string;
+  deleted_at: string;
+  sync_version?: number;
+  created_at: string;
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Platform } from 'react-native';
+import { ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 
@@ -14,6 +14,7 @@ import { SecondaryPageHeader } from '@/components/SecondaryPageHeader';
 import { canUseFeature, useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
 import { useLesion } from '@/hooks/useLesions';
 import { ApiError, api } from '@/lib/api';
+import { normalizeRecognitionOutput } from '@/lib/recognition/normalization';
 import { parseReportImageAssetsParam, stringifyReportImageAssetsParam } from '@/lib/report-images';
 import { Image, Pressable, SafeAreaView, ScrollView, Text, View } from '@/tw';
 
@@ -34,7 +35,6 @@ const BIRADS_OPTIONS = ['1', '2', '3', '4a', '4b', '4c', '5', '6'];
 const ECHO_OPTIONS = ['低回声', '等回声', '高回声', '混合回声'];
 const BORDER_OPTIONS = ['清晰', '模糊', '不规则'];
 const LUNG_RADS_OPTIONS = ['1', '2', '3', '4a', '4b', '4x'];
-const THYROID_DEMO_KEYS = ['disease_type', 'location', 'tirads', 'echo_type', 'border', 'size_x', 'calcification'];
 const LUNG_DENSITY_OPTIONS = ['实性', '磨玻璃', '混合', '钙化'];
 
 type FieldDefinition = Omit<Field, 'value' | 'confidence' | 'confirmed'>;
@@ -88,35 +88,6 @@ type RecognizeReportReply = {
 function parseDiseaseType(value: unknown): DiseaseType {
   if (value === 'thyroid' || value === 'breast' || value === 'lung') return value;
   return 'thyroid';
-}
-
-function parseImageUris(value: unknown): string[] {
-  return parseReportImageAssetsParam(value).map((img) => img.uri);
-}
-
-function isDemoSeed(value: unknown): boolean {
-  return (Array.isArray(value) ? value[0] : value) === 'demo';
-}
-
-const DEMO_REPORT_IMAGES = [
-  { uri: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="48" height="61" viewBox="0 0 48 61"%3E%3Crect width="48" height="61" rx="5" fill="%23f0ece6"/%3E%3Ctext x="24" y="33" text-anchor="middle" font-size="9" fill="%233D3528"%3E报告1%3C/text%3E%3C/svg%3E', mimeType: 'image/svg+xml' },
-  { uri: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="48" height="61" viewBox="0 0 48 61"%3E%3Crect width="48" height="61" rx="5" fill="%23f0ece6"/%3E%3Ctext x="24" y="33" text-anchor="middle" font-size="9" fill="%238A7D6E"%3E报告2%3C/text%3E%3C/svg%3E', mimeType: 'image/svg+xml' },
-];
-
-function buildDemoRecognitionFields(): Field[] {
-  return buildInitialFields('thyroid').map((field) => {
-    const demoValues: Record<string, { value: string; confidence: number }> = {
-      disease_type: { value: '甲状腺', confidence: 0.95 },
-      location: { value: '左叶中下段', confidence: 0.92 },
-      tirads: { value: '3', confidence: 0.88 },
-      echo_type: { value: '低回声', confidence: 0.86 },
-      border: { value: '清晰', confidence: 0.85 },
-      size_x: { value: '', confidence: 0.3 },
-      calcification: { value: '', confidence: 0 },
-    };
-    const demo = demoValues[field.key];
-    return demo ? { ...field, ...demo } : field;
-  });
 }
 
 async function readUriAsBase64(uri: string): Promise<string> {
@@ -205,13 +176,11 @@ function formatOptionLabel(field: Field, option: string): string {
 
 function displayDateFromFields(fields: Field[]): string {
   const raw = fields.find((field) => field.key === 'exam_date')?.value.trim();
-  return raw || '2024-03-15';
+  return raw || '未记录日期';
 }
 
-function visibleReviewFields(fields: Field[], diseaseType: DiseaseType): Field[] {
-  if (diseaseType !== 'thyroid') return fields;
-  const byKey = new Map(fields.map((field) => [field.key, field]));
-  return THYROID_DEMO_KEYS.map((key) => byKey.get(key)).filter((field): field is Field => Boolean(field));
+function visibleReviewFields(fields: Field[]): Field[] {
+  return fields;
 }
 
 function missingFieldValue(field: Field): string {
@@ -242,11 +211,10 @@ function normalizeOptionValue(value: string, options: string[]): string {
 }
 
 export default function RecognizePage() {
-  const params = useLocalSearchParams<{ images?: string; diseaseType?: string; lesionId?: string; prototypeRecognitionSeed?: string }>();
-  const demoSeed = isDemoSeed(params.prototypeRecognitionSeed);
-  const diseaseTypeFromParams = useMemo(() => (demoSeed ? 'thyroid' : parseDiseaseType(params.diseaseType)), [demoSeed, params.diseaseType]);
+  const params = useLocalSearchParams<{ images?: string; diseaseType?: string; lesionId?: string }>();
+  const diseaseTypeFromParams = useMemo(() => parseDiseaseType(params.diseaseType), [params.diseaseType]);
   const imagesParam = Array.isArray(params.images) ? params.images[0] : params.images;
-  const imageAssets = useMemo(() => (demoSeed ? DEMO_REPORT_IMAGES : parseReportImageAssetsParam(imagesParam)), [demoSeed, imagesParam]);
+  const imageAssets = useMemo(() => parseReportImageAssetsParam(imagesParam), [imagesParam]);
   const imageUris = useMemo(() => imageAssets.map((img) => img.uri), [imageAssets]);
   const lesionIdParam = Array.isArray(params.lesionId) ? params.lesionId[0] : params.lesionId;
   const lesionId = typeof lesionIdParam === 'string' && lesionIdParam ? lesionIdParam : null;
@@ -299,12 +267,6 @@ export default function RecognizePage() {
     setError('');
     setFields(buildInitialFields(requestDiseaseType));
 
-    if (demoSeed) {
-      setPaywallVisible(false);
-      setFields(buildDemoRecognitionFields());
-      setLoading(false);
-      return;
-    }
 
     if (lesionContextMissing) {
       setError('未找到该病灶');
@@ -322,7 +284,8 @@ export default function RecognizePage() {
     setPaywallVisible(false);
     setLoading(true);
 
-    const requestImageUris = parseImageUris(imagesParam);
+    const requestReportImages = parseReportImageAssetsParam(imagesParam);
+    const requestImageUris = requestReportImages.map((img) => img.uri);
     if (requestImageUris.length === 0) {
       setError('未收到可识别的图片');
       setLoading(false);
@@ -338,16 +301,18 @@ export default function RecognizePage() {
 
       if (requestIdRef.current !== requestId) return;
 
+      const normalized = normalizeRecognitionOutput({ requestedDiseaseType: requestDiseaseType, providerOutput: data, reportImages: requestReportImages });
       const responseFields = data.fields ?? {};
-      const defs = buildInitialFields(requestDiseaseType);
+      const defs = buildInitialFields(normalized.command.diseaseType);
       const defKeys = new Set(defs.map((field) => field.key));
 
       const mapped = defs.map((field) => {
-        const result = responseFields[field.key];
-        const rawValue = typeof result?.value === 'string' ? result.value : '';
-        const value = field.options ? normalizeOptionValue(rawValue, field.options) : rawValue;
-        const confidence = typeof result?.confidence === 'number' ? result.confidence : 0;
-        return { ...field, value, confidence, confirmed: false };
+        const normalizedValue = field.key === 'disease_type'
+          ? (normalized.command.diseaseType === 'thyroid' ? '甲状腺' : normalized.command.diseaseType === 'breast' ? '乳腺' : '肺')
+          : normalized.command.recognized[field.key as keyof typeof normalized.command.recognized];
+        const value = normalizedValue === null || normalizedValue === undefined ? '' : String(normalizedValue);
+        const confidence = normalized.fieldConfidence[field.key as keyof typeof normalized.fieldConfidence] ?? (field.key === 'disease_type' ? 1 : 0);
+        return { ...field, value: field.options ? normalizeOptionValue(value, field.options) : value, confidence, confirmed: false };
       });
 
       const extras = Object.entries(responseFields)
@@ -375,17 +340,16 @@ export default function RecognizePage() {
       if (requestIdRef.current !== requestId) return;
       setLoading(false);
     }
-  }, [demoSeed, imagesParam, lesionContextMissing, quotaBlocked, requestDiseaseType]);
+  }, [imagesParam, lesionContextMissing, quotaBlocked, requestDiseaseType]);
 
   useEffect(() => {
-    if (!demoSeed && subscriptionLoading) return;
+    if (subscriptionLoading) return;
     if (lesionContextPending || lesionContextMissing) return;
-    const key = `${diseaseType}|${imagesParam ?? ''}|${selectionLocked ? lesionId ?? '' : ''}|${demoSeed ? 'demo' : ''}`;
+    const key = `${diseaseType}|${imagesParam ?? ''}|${selectionLocked ? lesionId ?? '' : ''}`;
     if (autoRunKeyRef.current === key) return;
     autoRunKeyRef.current = key;
     void runRecognize();
   }, [
-    demoSeed,
     diseaseType,
     imagesParam,
     lesionContextMissing,
@@ -399,7 +363,7 @@ export default function RecognizePage() {
   const confirmedCount = fields.filter(isConfirmedField).length;
   const totalCount = fields.length;
   const requiredFilled = fields.filter((field) => field.required).every(isValidFieldValue);
-  const paywallActive = !demoSeed && (quotaBlocked || paywallVisible);
+  const paywallActive = quotaBlocked || paywallVisible;
   const uploadFallback = {
     pathname: '/record/upload' as const,
     params: {
@@ -415,39 +379,13 @@ export default function RecognizePage() {
     );
   }, []);
 
-  const visibleFields = visibleReviewFields(fields, diseaseType);
+  const visibleFields = visibleReviewFields(fields);
   const recognized = visibleFields.filter((field) => field.confidence > CONFIDENCE_THRESHOLD && isValidFieldValue(field));
   const pending = visibleFields.filter((field) => !(field.confidence > CONFIDENCE_THRESHOLD && isValidFieldValue(field)));
-  const displayTotalCount = diseaseType === 'thyroid' ? visibleFields.length : totalCount;
-  const displayConfirmedCount = diseaseType === 'thyroid'
-    ? visibleFields.filter(isConfirmedField).length
-    : confirmedCount;
+  const displayTotalCount = totalCount;
+  const displayConfirmedCount = confirmedCount;
   const displayProgress = displayTotalCount === 0 ? 0 : displayConfirmedCount / displayTotalCount;
   const reportDate = displayDateFromFields(fields);
-
-  if (Platform.OS === 'web' && demoSeed) {
-    return (
-      <div className="screen active" style={{ display: 'flex' }}>
-        <div className="topbar"><button className="tb-back" onClick={() => router.replace('/(main)?prototypeHomeSeed=demo')}>← 取消</button><span className="tb-page">核对识别结果</span><span className="tb-step">步骤 2/3</span></div>
-        <div className="scrl">
-          <div style={{ background: '#fff', border: '0.5px solid var(--border)', borderRadius: 11, padding: 11, marginBottom: 11, display: 'flex', gap: 9, alignItems: 'center' }}><div style={{ display: 'flex', gap: 5 }}><div style={{ width: 48, height: 61, borderRadius: 5, background: '#f0ece6', border: '1px solid var(--dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: 'var(--dark)' }}>报告1</div><div style={{ width: 48, height: 61, borderRadius: 5, background: '#f0ece6', border: '0.5px solid #e0dbd2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: 'var(--hint)' }}>报告2</div></div><div><div style={{ fontSize: 12, fontWeight: 500, color: 'var(--dark)', marginBottom: 3 }}>超声报告</div><div style={{ fontSize: 10, color: 'var(--hint)', marginBottom: 5 }}>共2张 · 2024-03-15</div><div style={{ fontSize: 10, color: '#6b5f4e', border: '0.5px solid var(--border2)', borderRadius: 4, padding: '3px 7px', background: 'var(--page)', display: 'inline-block', cursor: 'pointer' }}>放大查看</div></div></div>
-          <div className="prog-bar"><span className="prog-lbl">字段完整度</span><div className="prog-tr"><div className="prog-fill" /></div><span className="prog-ct">5/7 已确认</span></div>
-          <div className="sec">已识别字段</div>
-          <div className="fcard">
-            <div className="frow"><span className="fn2">结节类型</span><span className="fval">甲状腺</span><div className="fchk"><div className="fchk-d" /></div><span className="far">›</span></div>
-            <div className="frow"><span className="fn2">部位</span><span className="fval">左叶中下段</span><div className="fchk"><div className="fchk-d" /></div><span className="far">›</span></div>
-            <div className="frow" style={{ background: 'var(--sand)', borderLeft: '2px solid var(--dark)' }}><span className="fn2">TI-RADS</span><span className="fval">3级</span><div className="fchk"><div className="fchk-d" /></div><span className="far">展开</span></div>
-            <div className="frow"><span className="fn2">回声</span><span className="fval">低回声</span><div className="fchk"><div className="fchk-d" /></div><span className="far">›</span></div>
-            <div className="frow"><span className="fn2">边界</span><span className="fval">清晰</span><div className="fchk"><div className="fchk-d" /></div><span className="far">›</span></div>
-            <div className="ai-note"><div className="ai-dot" /><div className="ai-txt">以上字段由 AI 自动识别，点击可展开修改</div></div>
-          </div>
-          <div className="sec">需要补填</div>
-          <div className="fcard"><div className="frow-w"><span className="fn2" style={{ color: 'var(--muted)' }}>大小</span><span className="fval-w">识别不完整</span><span className="wtag">请补填</span><span className="far" style={{ color: '#c4a882', marginLeft: 5 }}>›</span></div><div className="frow-w"><span className="fn2" style={{ color: 'var(--muted)' }}>钙化</span><span className="fval-w">未识别</span><span className="wtag">请补填</span><span className="far" style={{ color: '#c4a882', marginLeft: 5 }}>›</span></div></div>
-        </div>
-        <div className="bot-bar"><div className="wh"><div className="wdot" /><div className="wt">还有 <span style={{ color: 'var(--amber)', fontWeight: 500 }}>2个字段</span> 未补填，补填后可继续</div></div><button className="btn-full" onClick={() => router.push('/record/match?prototypeMatchSeed=demo&diseaseType=thyroid&recognizedData=%7B%22disease_type%22%3A%22%E7%94%B2%E7%8A%B6%E8%85%BA%22%2C%22location%22%3A%22%E5%B7%A6%E5%8F%B6%E4%B8%AD%E4%B8%8B%E6%AE%B5%22%2C%22tirads%22%3A%223%22%2C%22echo_type%22%3A%22%E4%BD%8E%E5%9B%9E%E5%A3%B0%22%2C%22border%22%3A%22%E6%B8%85%E6%99%B0%22%2C%22size_x%22%3A%228.3%22%7D')}>下一步：匹配病灶</button></div>
-      </div>
-    );
-  }
 
   if (lesionContextPending) {
     return (
@@ -654,7 +592,6 @@ export default function RecognizePage() {
                   recognizedData: JSON.stringify(data),
                     diseaseType: requestDiseaseType,
                   images: imagesParam ?? stringifyReportImageAssetsParam(imageAssets),
-                  ...(demoSeed ? { prototypeMatchSeed: 'demo' } : {}),
                   ...(lesionId ? { lesionId } : {}),
                 },
               });

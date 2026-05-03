@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
@@ -11,14 +11,7 @@ import { useLesions } from '@/hooks/useLesions';
 import { useProfiles } from '@/hooks/useProfiles';
 import { useActiveReminders, useCreateReminder, useDeactivateReminder, useUpdateReminder } from '@/hooks/useReminders';
 import { parseStrictIsoCalendarDate } from '@/lib/iso-calendar-date';
-import {
-  isDemoSeed,
-  PROTOTYPE_REVIEW_EXAMINATIONS,
-  PROTOTYPE_REVIEW_LESIONS,
-  PROTOTYPE_REVIEW_PROFILE,
-  PROTOTYPE_REVIEW_REMINDERS,
-} from '@/lib/prototype-review';
-import { deriveAutoReminder } from '@/lib/reminder-calculator';
+import { buildReminderNodeFlags, deriveAutoReminder } from '@/lib/reminder-calculator';
 import { applyReminderSideEffects } from '@/lib/reminder-side-effects';
 import { useActiveProfile } from '@/providers/active-profile-provider';
 import { Pressable, SafeAreaView, ScrollView, Text, View } from '@/tw';
@@ -48,10 +41,6 @@ const DISEASE_LABELS: Record<string, string> = {
   lung: '肺',
 };
 
-const DEMO_REMINDER_NODE_TEXT_STYLE = {
-  fontSize: 7,
-  fontWeight: '500' as const,
-};
 
 function getRemainingDays(nextExamDate: string | null | undefined) {
   if (!nextExamDate) {
@@ -134,93 +123,17 @@ function makeId(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function ReminderNode({ label, active }: { label: string; active?: boolean }) {
-  return (
-    <View className={`h-[19px] w-[19px] items-center justify-center rounded-full ${active ? 'bg-primary' : 'border border-[#e0dbd2] bg-nav-bg'}`}>
-      <Text dataSet={{ demoRole: 'node-text' }} style={DEMO_REMINDER_NODE_TEXT_STYLE} className={active ? 'text-nav-bg' : 'text-hint'}>{label}</Text>
-    </View>
-  );
-}
-
-function DemoReminderCard({ urgent, title, subtitle, badge, date, dateSub, activeNodes, footerAction, unset }: {
-  urgent?: boolean;
-  title: string;
-  subtitle: string;
-  badge: string;
-  date: string;
-  dateSub: string;
-  activeNodes: number;
-  footerAction: string;
-  unset?: boolean;
-}) {
-  const nodes = ['月', '周', '3天', '当天'];
-  return (
-    <View className="mb-2 overflow-hidden rounded-[11px] border border-border bg-card">
-      <View className={`flex-row items-center justify-between border-b border-[#f5f2ee] px-3 py-[9px] ${urgent ? 'bg-new-bg' : ''}`}>
-        <View>
-          <Text className="text-[13px] font-medium text-primary">{title}</Text>
-          <Text className="mt-px text-[10px] text-muted">{subtitle}</Text>
-        </View>
-        <Text className={`rounded-[9px] px-[7px] py-0.5 text-[10px] font-medium ${urgent ? 'bg-[#fff0eb] text-new-text' : unset ? 'text-neutral-text' : 'bg-stable-bg text-stable-text'}`}>{badge}</Text>
-      </View>
-      <View className="flex-row items-center justify-between px-3 py-[9px]">
-        <View>
-          <Text className={`font-mono text-xs font-medium ${urgent ? 'text-new-text' : unset ? 'text-hint' : 'text-primary'}`}>{date}</Text>
-          <Text className={`mt-0.5 text-[10px] ${urgent ? 'font-medium text-new-mid' : 'text-hint'}`}>{dateSub}</Text>
-        </View>
-        <View>
-          <Text className="sr-only">层级（规划）</Text>
-          <View className="flex-row gap-1">
-            {nodes.map((node, index) => <ReminderNode key={node} label={node} active={index < activeNodes} />)}
-          </View>
-        </View>
-      </View>
-      <View className="flex-row items-center justify-between border-t border-[#f5f2ee] px-3 py-1.5">
-        <Text className="text-[10px] text-hint">本人</Text>
-        <Text className={`text-[10px] ${unset ? 'font-medium text-primary' : 'text-[#6b5f4e]'}`}>{footerAction}</Text>
-      </View>
-    </View>
-  );
-}
-
-function DemoRemindersPage() {
-  return (
-    <SafeAreaView testID="reminders-demo-screen" className="flex-1 bg-page-bg">
-      <View dataSet={{ demoRole: 'topbar' }}>
-        <Pressable onPress={() => router.push('/?prototypeHomeSeed=demo')}>
-          <Text dataSet={{ demoRole: 'topbar-text' }} className="text-xs text-muted">← 返回</Text>
-        </Pressable>
-        <Text className="font-serif text-sm font-normal text-primary">随访提醒</Text>
-        <Text className="text-[11px] text-muted">本人 ▾</Text>
-      </View>
-      <ScrollView dataSet={{ demoRole: 'scroll' }} showsVerticalScrollIndicator={false}>
-        <Text dataSet={{ demoRole: 'section' }}>即将到期</Text>
-        <DemoReminderCard urgent title="左叶中下段结节" subtitle="甲状腺 · 本人" badge="23天后" date="2024-09-15" dateSub="提醒已开启 · 4层提醒" activeNodes={2} footerAction="修改日期 ›" />
-        <View className="h-[5px]" />
-        <Text className="mb-[7px] text-[10px] font-medium uppercase tracking-[0.07em] text-hint">其他提醒</Text>
-        <DemoReminderCard title="右乳10点钟结节" subtitle="乳腺 · 本人" badge="5个月后" date="2025-01-10" dateSub="2025年1月10日" activeNodes={4} footerAction="修改日期 ›" />
-        <DemoReminderCard title="右上叶前段结节" subtitle="肺 · 本人" badge="未设置" date="— 暂未设置" dateSub="点击设置复查提醒" activeNodes={0} footerAction="设置提醒 ›" unset />
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-function RealRemindersPage({ demoSeed, int003Seed }: { demoSeed: boolean; int003Seed: boolean }) {
-  const { data: storedProfiles = [] } = useProfiles();
-  const { activeProfileId: storedActiveProfileId } = useActiveProfile();
-  const profiles = demoSeed ? [PROTOTYPE_REVIEW_PROFILE] : storedProfiles;
-  const activeProfileId = demoSeed ? PROTOTYPE_REVIEW_PROFILE.id : storedActiveProfileId;
+function RealRemindersPage({ int003Seed }: { int003Seed: boolean }) {
+  const { data: profiles = [] } = useProfiles();
+  const { activeProfileId } = useActiveProfile();
   const activeProfile = profiles.find((profile) => profile.id === activeProfileId) ?? null;
   const activeProfileName = activeProfile?.nickname ?? '';
-  const [int003Readback, setInt003Readback] = useState<{ lesion_label: string; next_exam_date: string } | null>(null);
+  const [int003Readback, setInt003Readback] = useState<{ lesion_id?: string; lesion_label: string; next_exam_date: string } | null>(null);
   const [int003SyncText, setInt003SyncText] = useState('');
 
-  const { data: storedLesions = [] } = useLesions(activeProfileId);
-  const { data: storedReminders = [] } = useActiveReminders(activeProfileId);
-  const { data: storedLatestExams = [] } = useLatestExaminationsByProfile(activeProfileId);
-  const lesions = demoSeed ? PROTOTYPE_REVIEW_LESIONS.filter((lesion) => lesion.profile_id === activeProfileId) : storedLesions;
-  const reminders = demoSeed ? PROTOTYPE_REVIEW_REMINDERS : storedReminders;
-  const latestExams = demoSeed ? Object.values(PROTOTYPE_REVIEW_EXAMINATIONS).map((exams) => exams[0]).filter(Boolean) : storedLatestExams;
+  const { data: lesions = [] } = useLesions(activeProfileId);
+  const { data: reminders = [] } = useActiveReminders(activeProfileId);
+  const { data: latestExams = [] } = useLatestExaminationsByProfile(activeProfileId);
 
   const createReminder = useCreateReminder();
   const updateReminder = useUpdateReminder();
@@ -275,6 +188,7 @@ function RealRemindersPage({ demoSeed, int003Seed }: { demoSeed: boolean; int003
           lesionId: lesion.id,
           lesionLabel: lesion.label,
           diseaseType: lesion.disease_type,
+          profileId: lesion.profile_id,
           profileName: activeProfileName,
           nextDate: daysUntil === undefined ? null : nextDate ?? null,
           daysUntil,
@@ -302,23 +216,28 @@ function RealRemindersPage({ demoSeed, int003Seed }: { demoSeed: boolean; int003
 
   const busy = createReminder.isPending || updateReminder.isPending || deactivateReminder.isPending;
 
-  const int003Item = int003Seed
-    ? reminderItems.find((item) => item.lesionLabel === '左叶中下段结节') ?? reminderItems[0]
-    : undefined;
+  const int003Item = int003Seed ? reminderItems[0] : undefined;
 
   const runInt003SyncProbe = useCallback(async () => {
     if (!int003Item) return;
     setInt003SyncText('正在同步 VAL-INT-003 提醒…');
+    const flags = buildReminderNodeFlags(int003Item.daysUntil);
     await api.post('/api/v1/reminders/sync', {
       reminders: [
         {
+          reminder_id: int003Item.reminderId,
+          profile_id: int003Item.profileId,
+          lesion_id: int003Item.lesionId,
+          archive_profile_id: int003Item.profileId,
+          archive_lesion_id: int003Item.lesionId,
           lesion_label: int003Item.lesionLabel,
           next_exam_date: int003Item.nextDate,
+          ...flags,
         },
       ],
     });
-    const readback = await api.get<{ reminders?: { lesion_label: string; next_exam_date: string }[] }>('/api/v1/reminders');
-    const matched = readback.reminders?.find((item) => item.lesion_label === int003Item.lesionLabel) ?? null;
+    const readback = await api.get<{ reminders?: { lesion_id?: string; lesion_label: string; next_exam_date: string }[] }>('/api/v1/reminders');
+    const matched = readback.reminders?.find((item) => item.lesion_id === int003Item.lesionId || item.lesion_label === int003Item.lesionLabel) ?? null;
     setInt003Readback(matched);
     setInt003SyncText(matched ? 'VAL-INT-003 后端读回已更新' : 'VAL-INT-003 后端读回为空');
   }, [int003Item]);
@@ -367,7 +286,15 @@ function RealRemindersPage({ demoSeed, int003Seed }: { demoSeed: boolean; int003
       if (item.reminderId) {
         await updateReminder.mutateAsync({
           id: item.reminderId,
-          updates: { next_exam_date: iso, source: 'manual', is_active: 1 },
+          updates: {
+              next_exam_date: iso,
+              source: 'manual',
+              is_active: 1,
+              remind1m_sent: 0,
+              remind1w_sent: 0,
+              remind3d_sent: 0,
+              remind0d_sent: 0,
+            },
         });
       } else {
         await createReminder.mutateAsync({
@@ -428,7 +355,7 @@ function RealRemindersPage({ demoSeed, int003Seed }: { demoSeed: boolean; int003
             <Text className="text-xs font-semibold text-primary">VAL-INT-003 浏览器证据探针</Text>
             <Text className="mt-1 text-xs text-neutral-text">本地提醒：{int003Item.lesionLabel} · {int003Item.nextDate} · {int003Item.reminderSource === 'manual' ? '手动编辑' : '自动推导'}</Text>
             {int003Readback ? (
-              <Text className="mt-1 text-xs text-new-text">后端读回：{int003Readback.lesion_label} · {int003Readback.next_exam_date}</Text>
+              <Text className="mt-1 text-xs text-new-text">后端读回：{int003Readback.lesion_id ? `${int003Readback.lesion_id} · ` : ''}{int003Readback.lesion_label} · {int003Readback.next_exam_date}</Text>
             ) : null}
             {int003SyncText ? <Text className="mt-1 text-xs text-neutral-text">{int003SyncText}</Text> : null}
             <View className="mt-2">
@@ -668,13 +595,5 @@ function RealRemindersPage({ demoSeed, int003Seed }: { demoSeed: boolean; int003
 }
 
 export default function RemindersPage() {
-  const { prototypeUi005Seed, prototypeInt003Seed } = useLocalSearchParams<{ prototypeUi005Seed?: string; prototypeInt003Seed?: string }>();
-  const demoSeed = isDemoSeed(prototypeUi005Seed);
-  const int003Seed = isDemoSeed(prototypeInt003Seed);
-
-  if (demoSeed && !int003Seed) {
-    return <DemoRemindersPage />;
-  }
-
-  return <RealRemindersPage demoSeed={demoSeed} int003Seed={int003Seed} />;
+  return <RealRemindersPage int003Seed={false} />;
 }

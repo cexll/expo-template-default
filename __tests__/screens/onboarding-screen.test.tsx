@@ -20,7 +20,7 @@ const mockMutateAsync = jest.fn();
 
 jest.mock('@/hooks/useProfiles', () => ({
   useProfiles: () => mockUseProfiles(),
-  useCreateProfile: () => ({
+  useCreateBackendProfile: () => ({
     mutateAsync: mockMutateAsync,
     isPending: false,
   }),
@@ -32,7 +32,7 @@ describe('OnboardingPage', () => {
   });
 
   it('matches the demo onboarding form defaults and live archive preview', async () => {
-    mockUseAuth.mockReturnValue({ isAuthenticated: true, isLoading: false, isNewUser: true });
+    mockUseAuth.mockReturnValue({ isAuthenticated: true, isLoading: false, isNewUser: true, user: { id: 'user-1' } });
     mockUseProfiles.mockReturnValue({ data: [] });
 
     render(<OnboardingPage />);
@@ -101,8 +101,8 @@ describe('OnboardingPage', () => {
     });
   });
 
-  it('creates a profile with sort_order = existing count and navigates to /(main)', async () => {
-    mockUseAuth.mockReturnValue({ isAuthenticated: true, isLoading: false, isNewUser: true });
+  it('creates a backend-session profile with existing count and navigates to /(main)', async () => {
+    mockUseAuth.mockReturnValue({ isAuthenticated: true, isLoading: false, isNewUser: true, user: { id: 'user-1' } });
     mockUseProfiles.mockReturnValue({
       data: [
         { id: 'profile-1', nickname: 'A', gender: 'female', birth_year: 1990, avatar_uri: null, sort_order: 0 },
@@ -133,14 +133,12 @@ describe('OnboardingPage', () => {
 
     const input = mockMutateAsync.mock.calls[0]?.[0];
     expect(input).toMatchObject({
+      sessionUserId: 'user-1',
       nickname: '本人',
       gender: 'male',
-      birth_year: 1985,
-      avatar_uri: null,
-      sort_order: 2,
+      birthYear: 1985,
+      existingCount: 2,
     });
-    expect(typeof input.id).toBe('string');
-    expect(input.id).toMatch(/^profile_/);
 
     const { router } = require('expo-router');
     await waitFor(() => {

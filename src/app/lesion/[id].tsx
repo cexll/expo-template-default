@@ -1,4 +1,3 @@
-import { Platform } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/ui/Card';
@@ -10,7 +9,6 @@ import { listReportImagesByLesion } from '@/lib/db/queries/report-images';
 import { useExaminations } from '@/hooks/useExaminations';
 import { useLesion } from '@/hooks/useLesions';
 import { useRemindersByLesion } from '@/hooks/useReminders';
-import type { Examination, Lesion, Reminder } from '@/lib/db/types';
 import { Image, Pressable, SafeAreaView, ScrollView, Text, View } from '@/tw';
 
 function formatMonth(value: string) {
@@ -41,6 +39,16 @@ function getRads(exam: { tirads: string | null; birads: string | null; lung_rads
   if (exam.birads) return `BI-RADS ${exam.birads}`;
   if (exam.lung_rads) return `LUNG-RADS ${exam.lung_rads}`;
   return '待补充分级';
+}
+
+function getThirdKeyValue(exam: {
+  echo_type: string | null;
+  density: string | null;
+  calcification: string | null;
+  shape: string | null;
+  morphology: string | null;
+}) {
+  return exam.echo_type ?? exam.density ?? exam.calcification ?? exam.shape ?? exam.morphology ?? '待补充指标';
 }
 
 function getDiseaseLabel(diseaseType: string | null) {
@@ -80,116 +88,10 @@ function getDaysUntil(value: string) {
   return days >= 0 ? `还有 ${days} 天` : `已逾期 ${Math.abs(days)} 天`;
 }
 
-function isDemoSeed(value: unknown): boolean {
-  return (Array.isArray(value) ? value[0] : value) === 'demo';
-}
-
-const PROTOTYPE_DETAIL_LESION: Lesion = {
-  id: 'lesion-1',
-  profile_id: 'prototype-profile-self',
-  disease_type: 'thyroid',
-  label: '左叶中下段结节',
-  location: '左叶中下段',
-  is_archived: 0,
-  created_at: '2023-03-05T00:00:00.000Z',
-  updated_at: '2024-03-15T00:00:00.000Z',
-};
-
-const PROTOTYPE_DETAIL_EXAMINATIONS: Examination[] = [
-  {
-    id: 'prototype-exam-latest',
-    lesion_id: 'lesion-1',
-    exam_date: '2024-03-15',
-    hospital: '重庆市第一人民医院',
-    size_x: 8.3,
-    size_y: 5.8,
-    size_z: 6.1,
-    tirads: '3',
-    echo_type: '低回声',
-    border: '尚清',
-    calcification: '点状强回声',
-    blood_flow: '少量血流',
-    birads: null,
-    shape: null,
-    orientation: null,
-    lung_rads: null,
-    density: null,
-    morphology: null,
-    pleural_pull: null,
-    ai_raw_json: null,
-    notes: null,
-    created_at: '2024-03-15T00:00:00.000Z',
-    updated_at: '2024-03-15T00:00:00.000Z',
-  },
-  {
-    id: 'prototype-exam-previous',
-    lesion_id: 'lesion-1',
-    exam_date: '2023-09-10',
-    hospital: '重庆市第一人民医院',
-    size_x: 7.8,
-    size_y: 5.2,
-    size_z: 5.8,
-    tirads: '3',
-    echo_type: '低回声',
-    border: '尚清',
-    calcification: '无明显钙化',
-    blood_flow: '少量血流',
-    birads: null,
-    shape: null,
-    orientation: null,
-    lung_rads: null,
-    density: null,
-    morphology: null,
-    pleural_pull: null,
-    ai_raw_json: null,
-    notes: null,
-    created_at: '2023-09-10T00:00:00.000Z',
-    updated_at: '2023-09-10T00:00:00.000Z',
-  },
-  {
-    id: 'prototype-exam-baseline',
-    lesion_id: 'lesion-1',
-    exam_date: '2023-03-05',
-    hospital: '重庆市第一人民医院',
-    size_x: 7.1,
-    size_y: null,
-    size_z: null,
-    tirads: '3',
-    echo_type: '低回声',
-    border: '清楚',
-    calcification: '无明显钙化',
-    blood_flow: '未见明显血流',
-    birads: null,
-    shape: null,
-    orientation: null,
-    lung_rads: null,
-    density: null,
-    morphology: null,
-    pleural_pull: null,
-    ai_raw_json: null,
-    notes: null,
-    created_at: '2023-03-05T00:00:00.000Z',
-    updated_at: '2023-03-05T00:00:00.000Z',
-  },
-];
-
-const PROTOTYPE_DETAIL_REMINDERS: Reminder[] = [
-  {
-    id: 'prototype-reminder-detail',
-    lesion_id: 'lesion-1',
-    next_exam_date: '2024-09-15',
-    source: 'auto',
-    is_active: 1,
-    created_at: '2024-03-15T00:00:00.000Z',
-    updated_at: '2024-03-15T00:00:00.000Z',
-  },
-];
-
 export default function LesionDetailPage() {
-  const params = useLocalSearchParams<{ id: string; reminderSync?: string; reminderPerm?: string; prototypeDetailSeed?: string; recordSaved?: string }>();
+  const params = useLocalSearchParams<{ id: string; reminderSync?: string; reminderPerm?: string; recordSaved?: string }>();
   const lesionId = typeof params.id === 'string' ? params.id : '';
-  const demoSeed = isDemoSeed(params.prototypeDetailSeed);
-  const recordSaved = isDemoSeed(params.recordSaved);
+  const recordSaved = params.recordSaved === '1';
   const reminderSync = typeof params.reminderSync === 'string' ? params.reminderSync : '';
   const reminderPerm = typeof params.reminderPerm === 'string' ? params.reminderPerm : '';
   const reminderBannerText =
@@ -202,15 +104,15 @@ export default function LesionDetailPage() {
   const { data: storedLesion } = useLesion(lesionId);
   const { data: storedExaminations = [] } = useExaminations(lesionId);
   const { data: storedReminders = [] } = useRemindersByLesion(lesionId);
-  const lesion = demoSeed ? PROTOTYPE_DETAIL_LESION : storedLesion;
-  const examinations = demoSeed ? PROTOTYPE_DETAIL_EXAMINATIONS : storedExaminations;
-  const reminders = demoSeed ? PROTOTYPE_DETAIL_REMINDERS : storedReminders;
+  const lesion = storedLesion;
+  const examinations = storedExaminations;
+  const reminders = storedReminders;
   const activeReminder = reminders.find((reminder) => reminder.is_active === 1) ?? null;
 
   const reportImagesQuery = useQuery({
     queryKey: ['report_images', 'lesion', lesionId],
     queryFn: () => listReportImagesByLesion(lesionId),
-    enabled: Boolean(lesionId) && !demoSeed,
+    enabled: Boolean(lesionId),
   });
 
   const reportImagesByExamId = (() => {
@@ -305,27 +207,6 @@ export default function LesionDetailPage() {
         })()
       : null;
 
-  if (Platform.OS === 'web' && demoSeed) {
-    return (
-      <div className="screen active" style={{ display: 'flex' }}>
-        <div className="topbar"><button className="tb-back" onClick={() => router.replace('/(main)?prototypeHomeSeed=demo')}>← 首页</button><span className="tb-page">病灶详情</span><span style={{ fontSize: 16, color: 'var(--muted)' }}>···</span></div>
-        <div className="hero"><div className="hero-name">左叶中下段结节</div><div className="hero-meta">甲状腺 · 左叶 · 建档于 2023-03</div><div className="hero-stats"><div className="hst"><span className="hsv-up">8.3mm</span><span className="hsl">当前大小</span></div><div className="hst"><span className="hsv">TI-RADS 3</span><span className="hsl">当前分级</span></div><div className="hst"><div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div className="tri" /><span className="hsv-up">17%</span></div><span className="hsl">较基线增大</span></div></div></div>
-        <div className="act-row"><button className="act-btn" onClick={() => router.push('/lesion/lesion-1/compare?prototypeDetailSeed=demo')}>查看对比</button><button className="act-btn-p" onClick={() => router.push('/record/recognize?prototypeRecognitionSeed=demo')}>+ 新增记录</button></div>
-        <div className="scrl">
-          <div className="sec">检查记录</div>
-          <div className="tl"><div className="tl-spine" />
-            <div className="tli"><div className="tl-dw"><div className="dot-now" /></div><div className="rc"><div className="rch"><div style={{ display: 'flex', alignItems: 'center' }}><span className="rcdt">2024-03-15</span><span className="rctag">最新</span></div><span className="bdge b-up">▲ 增大</span></div><div className="rcb"><div className="rcst"><div className="rv-up">8.3mm</div><div className="rls">大小</div></div><div className="rcst" style={{ paddingLeft: 9 }}><div className="rv">3级</div><div className="rls">TI-RADS</div></div><div className="rcst" style={{ paddingLeft: 9 }}><div className="rv" style={{ color: 'var(--coral)', fontSize: 11 }}>点状强回声</div><div className="rls">钙化</div></div></div><div className="rcd"><div className="di"><span className="dl">较上次</span><span className="dv">+0.5mm</span><span className="dp">+6%</span></div><div className="di"><span className="dl">较基线</span><span className="dv">+1.2mm</span><span className="dp">+17%</span></div></div><div className="rcf"><span className="rh">重庆市第一人民医院</span><span style={{ fontSize: 11, color: 'var(--gray)' }}>›</span></div></div></div>
-            <div className="gap-row"><div className="gl" /><span className="gt">间隔 6个月</span><div className="gl" /></div>
-            <div className="tli"><div className="tl-dw"><div className="dot-past" /></div><div className="rc"><div className="rch"><span className="rcdt">2023-09-10</span><span className="bdge b-ok">— 稳定</span></div><div className="rcb"><div className="rcst"><div className="rv">7.8mm</div><div className="rls">大小</div></div><div className="rcst" style={{ paddingLeft: 9 }}><div className="rv">3级</div><div className="rls">TI-RADS</div></div><div className="rcst" style={{ paddingLeft: 9 }}><div className="rv">无</div><div className="rls">钙化</div></div></div><div className="rcf"><span className="rh">重庆市第一人民医院</span><span style={{ fontSize: 11, color: 'var(--gray)' }}>›</span></div></div></div>
-            <div className="gap-row"><div className="gl" /><span className="gt">间隔 6个月</span><div className="gl" /></div>
-            <div className="tli"><div className="tl-dw"><div className="dot-past" /></div><div className="rc"><div className="rch"><span className="rcdt">2023-03-05</span><span className="bdge b-first">首次</span></div><div className="rcb"><div className="rcst"><div className="rv">7.1mm</div><div className="rls">大小</div></div><div className="rcst" style={{ paddingLeft: 9 }}><div className="rv">3级</div><div className="rls">TI-RADS</div></div><div className="rcst" style={{ paddingLeft: 9 }}><div className="rv">无</div><div className="rls">钙化</div></div></div><div className="rcf"><span className="rh">重庆市第一人民医院</span><span style={{ fontSize: 11, color: 'var(--gray)' }}>›</span></div></div></div>
-          </div>
-          <div className="remind-c"><div><div className="rlbl">下次建议复查</div><div className="rdt">2024-09-15</div><div className="rsub">还有 23 天</div></div><button className="redit">修改</button></div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <SafeAreaView className="flex-1 bg-page-bg">
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
@@ -378,7 +259,7 @@ export default function LesionDetailPage() {
               <Button
                 title="查看对比"
                 variant="outline"
-                onPress={() => router.push(`/lesion/${lesionId}/compare${demoSeed ? '?prototypeDetailSeed=demo' : ''}`)}
+                onPress={() => router.push(`/lesion/${lesionId}/compare`)}
                 fullWidth
               />
             </View>
@@ -441,10 +322,10 @@ export default function LesionDetailPage() {
                       {statusBadge}
                     </View>
 
-                    <View className="flex-row items-end gap-4">
-                      <View className="min-w-[96px]">
+                    <View className="flex-row items-end gap-3">
+                      <View className="flex-1">
                         <Text className="text-xs text-neutral-text">大小</Text>
-                        <Text className="mt-1 font-mono text-lg font-semibold text-primary">
+                        <Text className="mt-1 font-mono text-base font-semibold text-primary">
                           {formatPrimarySizeMm(exam)}
                         </Text>
                       </View>
@@ -452,14 +333,11 @@ export default function LesionDetailPage() {
                         <Text className="text-xs text-neutral-text">分级</Text>
                         <Text className="mt-1 text-sm font-semibold text-primary">{getRads(exam)}</Text>
                       </View>
-                    </View>
-
-                    {exam.calcification ? (
-                      <View className="mt-2">
-                        <Text className="text-xs text-neutral-text">钙化</Text>
-                        <Text className="mt-1 text-sm text-primary">{exam.calcification}</Text>
+                      <View className="flex-1">
+                        <Text className="text-xs text-neutral-text">关键指标</Text>
+                        <Text className="mt-1 text-sm font-semibold text-primary">{getThirdKeyValue(exam)}</Text>
                       </View>
-                    ) : null}
+                    </View>
 
                     {previousDelta || baselineDelta ? (
                       <View className="mt-3 rounded-xl bg-page-bg px-3 py-2">
@@ -520,7 +398,7 @@ export default function LesionDetailPage() {
                   <Text className="mt-1 text-xs text-increase-text">{getDaysUntil(activeReminder.next_exam_date)}</Text>
                 </View>
                 <Pressable
-                  onPress={() => router.push(`/lesion/${lesionId}/compare${demoSeed ? '?prototypeDetailSeed=demo' : ''}`)}
+                  onPress={() => router.push(`/lesion/${lesionId}/compare`)}
                   accessibilityLabel="修改复查日期"
                 >
                   <Text className="text-sm font-semibold text-primary">修改</Text>

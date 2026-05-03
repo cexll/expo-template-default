@@ -70,26 +70,6 @@ describe('SummaryPage UI contract basics', () => {
     } as any);
   });
 
-  it('renders UI-005 prototype review summary state without stored profile data', () => {
-    const { useLocalSearchParams } = require('expo-router');
-    (useLocalSearchParams as jest.Mock).mockReturnValue({ profileId: 'prototype-profile-self', prototypeUi005Seed: 'demo' });
-
-    mockUseProfile.mockReturnValue({ data: undefined, isLoading: false, isFetching: false });
-    mockUseLesions.mockReturnValue({ data: [] });
-    mockUseActiveReminders.mockReturnValue({ data: [] });
-    mockUseSubscriptionStatus.mockReturnValue({ data: undefined, isLoading: false });
-    mockUseQueries.mockReturnValue([]);
-
-    renderWithQueryClient(<SummaryPage />);
-
-    expect(screen.getByText('本人的就诊摘要')).toBeTruthy();
-    expect(screen.getByText('左叶中下段结节')).toBeTruthy();
-    expect(screen.getByText('右乳10点钟结节')).toBeTruthy();
-    expect(screen.getByText('右上叶前段结节')).toBeTruthy();
-    expect(screen.getByText('本摘要由「结节档案」生成，仅供医生参考，不构成诊断意见。')).toBeTruthy();
-    expect(screen.getByText('保存为图片')).toBeTruthy();
-  });
-
   it('rejects an invalid profile id', () => {
     const { useLocalSearchParams } = require('expo-router');
     (useLocalSearchParams as jest.Mock).mockReturnValue({});

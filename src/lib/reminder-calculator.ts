@@ -34,6 +34,26 @@ function parseGrade(value: string | null | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+export type ReminderNodeFlags = {
+  remind1m_sent: boolean;
+  remind1w_sent: boolean;
+  remind3d_sent: boolean;
+  remind0d_sent: boolean;
+};
+
+export function buildReminderNodeFlags(daysUntilReview: number | null | undefined): ReminderNodeFlags {
+  if (daysUntilReview === null || daysUntilReview === undefined) {
+    return { remind1m_sent: false, remind1w_sent: false, remind3d_sent: false, remind0d_sent: false };
+  }
+
+  return {
+    remind1m_sent: daysUntilReview <= 30,
+    remind1w_sent: daysUntilReview <= 7,
+    remind3d_sent: daysUntilReview <= 3,
+    remind0d_sent: daysUntilReview <= 0,
+  };
+}
+
 function addMonthsUTC(isoDate: string, months: number): string | null {
   if (!isIsoDateOnly(isoDate)) return null;
   const [y, m, d] = isoDate.split('-').map((part) => Number(part));

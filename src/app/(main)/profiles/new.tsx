@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Tag } from '@/components/ui/Tag';
 import { useCreateProfile, useProfiles } from '@/hooks/useProfiles';
+import { useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
 import { useActiveProfile } from '@/providers/active-profile-provider';
+import { assertFreeArchiveLimit } from '@/lib/subscription/free-archive-limits';
 import { SafeAreaView, Text, View } from '@/tw';
 
 function makeId(prefix: string) {
@@ -20,6 +22,7 @@ export default function CreateProfilePage() {
   const [error, setError] = useState('');
 
   const { data: profiles = [] } = useProfiles();
+  const { data: subscriptionStatus, isLoading: subscriptionLoading } = useSubscriptionStatus();
   const createProfile = useCreateProfile();
   const { setActiveProfileId } = useActiveProfile();
 
@@ -55,10 +58,15 @@ export default function CreateProfilePage() {
       setError('请输入出生年份');
       return;
     }
+    if (subscriptionLoading || !subscriptionStatus) {
+      setError('权益状态加载中，请稍后再试');
+      return;
+    }
 
     setError('');
 
     try {
+      assertFreeArchiveLimit(subscriptionStatus, { profiles: profiles.length });
       const profileId = makeId('profile');
       await createProfile.mutateAsync({
         id: profileId,
@@ -74,7 +82,7 @@ export default function CreateProfilePage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : '创建失败，请重试');
     }
-  }, [birthYear, createProfile, gender, nickname, profiles.length, setActiveProfileId]);
+  }, [birthYear, createProfile, gender, nickname, profiles.length, setActiveProfileId, subscriptionLoading, subscriptionStatus]);
 
   return (
     <SafeAreaView className="flex-1 bg-page-bg">
@@ -120,10 +128,10 @@ export default function CreateProfilePage() {
 
         <View className="mt-8">
           <Button
-            title={createProfile.isPending ? '创建中...' : '完成'}
+            title={createProfile.isPending ? '创建中...' : subscriptionLoading ? '权益加载中...' : '完成'}
             onPress={() => void submit()}
             fullWidth
-            disabled={createProfile.isPending}
+            disabled={createProfile.isPending || subscriptionLoading}
           />
         </View>
 

@@ -26,6 +26,7 @@ describe('db init', () => {
             { name: 'examinations' },
             { name: 'report_images' },
             { name: 'reminders' },
+            { name: 'archive_tombstones' },
           ];
         }
         if (sql.includes('PRAGMA table_info(report_images)')) {
@@ -35,7 +36,24 @@ describe('db init', () => {
             { name: 'uri' },
             { name: 'sort_order' },
             { name: 'mime_type' },
+            { name: 'object_key' },
+            { name: 'size_bytes' },
+            { name: 'sha256' },
+            { name: 'sync_version' },
+            { name: 'updated_at' },
             { name: 'created_at' },
+          ];
+        }
+        if (sql.includes('PRAGMA table_info(profiles)') || sql.includes('PRAGMA table_info(lesions)') || sql.includes('PRAGMA table_info(examinations)')) {
+          return [{ name: 'sync_version' }];
+        }
+        if (sql.includes('PRAGMA table_info(reminders)')) {
+          return [
+            { name: 'remind1m_sent' },
+            { name: 'remind1w_sent' },
+            { name: 'remind3d_sent' },
+            { name: 'remind0d_sent' },
+            { name: 'sync_version' },
           ];
         }
         return [];
@@ -49,7 +67,7 @@ describe('db init', () => {
     expect(openDatabaseAsyncMock).toHaveBeenCalledWith('nodule-archive.db');
     expect(db.execAsync).toHaveBeenCalledWith('PRAGMA foreign_keys = ON;');
     expect(db.execAsync).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE IF NOT EXISTS profiles'));
-    expect(db.execAsync).toHaveBeenCalledWith('PRAGMA user_version = 2;');
+    expect(db.execAsync).toHaveBeenCalledWith('PRAGMA user_version = 3;');
   });
 
   it('reuses the opened database without rerunning migration', async () => {
@@ -64,6 +82,7 @@ describe('db init', () => {
             { name: 'examinations' },
             { name: 'report_images' },
             { name: 'reminders' },
+            { name: 'archive_tombstones' },
           ];
         }
         if (sql.includes('PRAGMA table_info(report_images)')) {
@@ -73,7 +92,24 @@ describe('db init', () => {
             { name: 'uri' },
             { name: 'sort_order' },
             { name: 'mime_type' },
+            { name: 'object_key' },
+            { name: 'size_bytes' },
+            { name: 'sha256' },
+            { name: 'sync_version' },
+            { name: 'updated_at' },
             { name: 'created_at' },
+          ];
+        }
+        if (sql.includes('PRAGMA table_info(profiles)') || sql.includes('PRAGMA table_info(lesions)') || sql.includes('PRAGMA table_info(examinations)')) {
+          return [{ name: 'sync_version' }];
+        }
+        if (sql.includes('PRAGMA table_info(reminders)')) {
+          return [
+            { name: 'remind1m_sent' },
+            { name: 'remind1w_sent' },
+            { name: 'remind3d_sent' },
+            { name: 'remind0d_sent' },
+            { name: 'sync_version' },
           ];
         }
         return [];
@@ -86,6 +122,7 @@ describe('db init', () => {
     await getDatabase();
 
     expect(openDatabaseAsyncMock).toHaveBeenCalledTimes(1);
-    expect(db.execAsync).toHaveBeenCalledTimes(1);
+    expect(db.execAsync).toHaveBeenCalledWith('PRAGMA foreign_keys = ON;');
+    expect(db.execAsync).toHaveBeenCalledTimes(4);
   });
 });

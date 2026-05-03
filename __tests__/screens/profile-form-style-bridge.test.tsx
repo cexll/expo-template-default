@@ -19,11 +19,16 @@ jest.mock('@/providers/auth-provider', () => ({
 }));
 
 const mockUseProfiles = jest.fn();
+const mockUseSubscriptionStatus = jest.fn();
 const mockMutateAsync = jest.fn();
 
 jest.mock('@/hooks/useProfiles', () => ({
   useProfiles: () => mockUseProfiles(),
   useCreateProfile: () => ({
+    mutateAsync: mockMutateAsync,
+    isPending: false,
+  }),
+  useCreateBackendProfile: () => ({
     mutateAsync: mockMutateAsync,
     isPending: false,
   }),
@@ -35,6 +40,10 @@ jest.mock('@/providers/active-profile-provider', () => ({
     activeProfileId: null,
     setActiveProfileId: mockSetActiveProfileId,
   }),
+}));
+
+jest.mock('@/hooks/useSubscriptionStatus', () => ({
+  useSubscriptionStatus: () => mockUseSubscriptionStatus(),
 }));
 
 function collectClassNameProps(
@@ -65,6 +74,7 @@ describe('profile form style bridge regression guard', () => {
       isNewUser: true,
     });
     mockUseProfiles.mockReturnValue({ data: [] });
+    mockUseSubscriptionStatus.mockReturnValue({ data: { isActive: true } });
   });
 
   afterEach(() => {

@@ -1,10 +1,12 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { getDatabase } from '@/lib/db';
+import type { SubscriptionStatus } from '@/hooks/useSubscriptionStatus';
 import type { Lesion, Reminder } from '@/lib/db/types';
 import type { ReportImageAsset } from '@/lib/report-images';
 import { cleanupPersistedReportImages, persistReportImages, type PersistedReportImage } from '@/lib/report-image-storage';
 import { deriveAutoReminder } from '@/lib/reminder-calculator';
+import { assertFreeArchiveLimit } from '@/lib/subscription/free-archive-limits';
 
 type DiseaseType = Lesion['disease_type'];
 
@@ -92,7 +94,7 @@ async function upsertAutoReminderWithDb(args: {
   const nextExamDate = derivation.nextExamDate;
   if (activeReminder) {
     await args.db.runAsync(
-      "UPDATE reminders SET next_exam_date = ?, source = ?, is_active = ?, updated_at = datetime('now') WHERE id = ?;",
+      "UPDATE reminders SET next_exam_date = ?, source = ?, is_active = ?, remind1m_sent = 0, remind1w_sent = 0, remind3d_sent = 0, remind0d_sent = 0, updated_at = datetime('now') WHERE id = ?;",
       nextExamDate,
       'auto',
       1,
@@ -133,6 +135,15 @@ async function withTransaction<T>(db: SQLiteDatabase, fn: () => Promise<T>): Pro
   }
 }
 
+async function refreshArchiveProjectionsWithDb(db: SQLiteDatabase, lesionId: string) {
+  await db.getAllAsync(
+    `
+      SELECT ? AS lesion_id, 'archive_projection_refresh' AS refresh_kind;
+    `,
+    lesionId
+  );
+}
+
 async function listRemindersByLesionWithDb(db: SQLiteDatabase, lesionId: string) {
   return db.getAllAsync<Reminder>(
     `
@@ -145,6 +156,34 @@ async function listRemindersByLesionWithDb(db: SQLiteDatabase, lesionId: string)
   );
 }
 
+function countValue(row: { count: number } | null | undefined) {
+  return typeof row?.count === 'number' && Number.isFinite(row.count) ? row.count : 0;
+}
+
+async function countActiveLesionsForProfileWithDb(db: SQLiteDatabase, profileId: string) {
+  const row = await db.getFirstAsync<{ count: number }>(
+    `
+      SELECT COUNT(*) AS count
+      FROM lesions
+      WHERE profile_id = ? AND is_archived = 0;
+    `,
+    profileId
+  );
+  return countValue(row);
+}
+
+async function countRecordsForLesionWithDb(db: SQLiteDatabase, lesionId: string) {
+  const row = await db.getFirstAsync<{ count: number }>(
+    `
+      SELECT COUNT(*) AS count
+      FROM examinations
+      WHERE lesion_id = ?;
+    `,
+    lesionId
+  );
+  return countValue(row);
+}
+
 export async function saveMatchRecordAtomic(
   args: {
     activeProfileId: string;
@@ -154,6 +193,7 @@ export async function saveMatchRecordAtomic(
     rawRecognizedJson: string | undefined;
     reportImages: ReportImageAsset[];
     selectedLesionId?: string | null;
+    subscriptionStatus?: Pick<SubscriptionStatus, 'isActive' | 'freeLimits'> | null;
     debugFailStep?: 'report_images' | 'reminder';
   },
   deps?: {
@@ -191,6 +231,11 @@ export async function saveMatchRecordAtomic(
 
     try {
       const db = deps?.db ?? (await getDatabase());
+      if (args.subscriptionStatus) {
+        const lesionsForProfile = await countActiveLesionsForProfileWithDb(db, args.activeProfileId);
+        assertFreeArchiveLimit(args.subscriptionStatus, { lesionsForProfile, recordsForLesion: 0 });
+      }
+
       return await withTransaction(db, async () => {
         await db.runAsync(
           `
@@ -291,6 +336,8 @@ export async function saveMatchRecordAtomic(
           });
         }
 
+        await refreshArchiveProjectionsWithDb(db, lesionId);
+
         return { lesionId, examinationId };
       });
     } catch (err) {
@@ -315,6 +362,11 @@ export async function saveMatchRecordAtomic(
 
   try {
     const db = deps?.db ?? (await getDatabase());
+    if (args.subscriptionStatus) {
+      const recordsForLesion = await countRecordsForLesionWithDb(db, lesionId);
+      assertFreeArchiveLimit(args.subscriptionStatus, { recordsForLesion });
+    }
+
     return await withTransaction(db, async () => {
       const examDate = formatExamDate(args.recognized.exam_date);
 
@@ -400,6 +452,8 @@ export async function saveMatchRecordAtomic(
           recognized: args.recognized,
         });
       }
+
+      await refreshArchiveProjectionsWithDb(db, lesionId);
 
       return { lesionId, examinationId };
     });

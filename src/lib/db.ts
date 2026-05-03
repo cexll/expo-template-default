@@ -1,7 +1,7 @@
 import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 
 export const DATABASE_NAME = 'nodule-archive.db';
-export const DATABASE_VERSION = 2;
+export const DATABASE_VERSION = 3;
 
 type Migration = string | ((db: SQLiteDatabase) => Promise<void>);
 
@@ -162,6 +162,39 @@ async function ensureReportImageMimeTypeColumn(db: SQLiteDatabase) {
   await db.execAsync('ALTER TABLE report_images ADD COLUMN mime_type TEXT;');
 }
 
+async function ensureColumn(db: SQLiteDatabase, table: string, name: string, definition: string) {
+  if (typeof (db as any).getAllAsync !== 'function') return;
+  const columns = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table});`);
+  if (columns.some((col) => col.name === name)) return;
+  await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition};`);
+}
+
+async function ensureCloudArchiveSyncColumns(db: SQLiteDatabase) {
+  await ensureColumn(db, 'profiles', 'sync_version', 'INTEGER NOT NULL DEFAULT 0');
+  await ensureColumn(db, 'lesions', 'sync_version', 'INTEGER NOT NULL DEFAULT 0');
+  await ensureColumn(db, 'examinations', 'sync_version', 'INTEGER NOT NULL DEFAULT 0');
+  await ensureColumn(db, 'report_images', 'object_key', 'TEXT');
+  await ensureColumn(db, 'report_images', 'size_bytes', 'INTEGER NOT NULL DEFAULT 0');
+  await ensureColumn(db, 'report_images', 'sha256', 'TEXT');
+  await ensureColumn(db, 'report_images', 'sync_version', 'INTEGER NOT NULL DEFAULT 0');
+  await ensureColumn(db, 'report_images', 'updated_at', "TEXT NOT NULL DEFAULT (datetime('now'))");
+  await ensureColumn(db, 'reminders', 'remind1m_sent', 'INTEGER');
+  await ensureColumn(db, 'reminders', 'remind1w_sent', 'INTEGER');
+  await ensureColumn(db, 'reminders', 'remind3d_sent', 'INTEGER');
+  await ensureColumn(db, 'reminders', 'remind0d_sent', 'INTEGER');
+  await ensureColumn(db, 'reminders', 'sync_version', 'INTEGER NOT NULL DEFAULT 0');
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS archive_tombstones (
+      entity_type TEXT NOT NULL,
+      local_id TEXT NOT NULL,
+      deleted_at TEXT NOT NULL,
+      sync_version INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (entity_type, local_id)
+    );
+  `);
+}
+
 async function applyMigration(db: SQLiteDatabase, migration: Migration) {
   if (typeof migration === 'string') {
     await db.execAsync(migration);
@@ -177,6 +210,9 @@ const migrations: Migration[] = [
   async (db) => {
     await db.execAsync(SCHEMA_V2);
     await ensureReportImageMimeTypeColumn(db);
+  },
+  async (db) => {
+    await ensureCloudArchiveSyncColumns(db);
   },
 ];
 
@@ -206,7 +242,7 @@ async function ensureCoreTables(db: SQLiteDatabase) {
   // PRAGMA user_version is already set but the core schema is missing (e.g. an interrupted init).
   // To keep the app bootable and the local-first contract valid, defensively re-apply the
   // latest schema when required tables are absent.
-  const requiredTables = ['profiles', 'lesions', 'examinations', 'report_images', 'reminders'] as const;
+  const requiredTables = ['profiles', 'lesions', 'examinations', 'report_images', 'reminders', 'archive_tombstones'] as const;
   const existing = new Set(
     (
       await db.getAllAsync<{ name: string }>(
@@ -221,10 +257,10 @@ async function ensureCoreTables(db: SQLiteDatabase) {
   const missing = requiredTables.filter((name) => !existing.has(name));
   if (missing.length === 0) return;
 
-  // Apply the latest schema (idempotent because it uses IF NOT EXISTS).
-  const latestSchema = migrations[DATABASE_VERSION - 1];
-  if (!latestSchema) throw new Error('Missing latest schema migration');
-  await applyMigration(db, latestSchema);
+  // Apply the latest table schema (idempotent because it uses IF NOT EXISTS), then ensure additive sync columns.
+  await db.execAsync(SCHEMA_V2);
+  await ensureReportImageMimeTypeColumn(db);
+  await ensureCloudArchiveSyncColumns(db);
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION};`);
 }
 
@@ -234,6 +270,8 @@ async function initializeDatabase() {
   await db.execAsync('PRAGMA foreign_keys = ON;');
   await migrateDatabase(db);
   await ensureCoreTables(db);
+  await ensureReportImageMimeTypeColumn(db);
+  await ensureCloudArchiveSyncColumns(db);
 
   return db;
 }

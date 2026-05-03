@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Platform } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useAuth } from '@/providers/auth-provider';
@@ -8,11 +8,11 @@ import { formatSubscriptionPlan, useSubscriptionStatus } from '@/hooks/useSubscr
 import { useProfiles } from '@/hooks/useProfiles';
 import { syncCloudArchiveIfEntitled } from '@/lib/cloud-sync';
 import {
-  isDemoSeed,
-  PROTOTYPE_REVIEW_PREMIUM_STATUS,
-  PROTOTYPE_REVIEW_PROFILES,
-  PROTOTYPE_REVIEW_SUBSCRIPTION_STATUS,
-} from '@/lib/prototype-review';
+  formatLocalArchiveStorage,
+  formatNotificationState,
+  formatReminderContact,
+  readLocalArchiveSettingsSnapshot,
+} from '@/lib/settings/archive-snapshot';
 import Constants from 'expo-constants';
 import { Pressable, SafeAreaView, ScrollView, Text, View } from '@/tw';
 
@@ -55,41 +55,16 @@ function SettingsRow({
   );
 }
 
-function DemoSettingsPage() {
-  return (
-    <div className="screen active" style={{ display: 'flex' }}>
-      <div className="topbar"><span></span><span className="tb-page">设置</span><span></span></div>
-      <div className="scrl">
-        <div className="sec">账号</div>
-        <div className="sc2"><div className="sr2"><div className="sic">👤</div><div className="sif"><div className="sn">档案人管理</div><div className="ss">本人、妈妈、爸爸 · 共3人</div></div><span className="sa">›</span></div><div className="sr2"><div className="sic">📱</div><div className="sif"><div className="sn">手机号</div><div className="ss">138****8888</div></div><div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ fontSize: 11, color: 'var(--hint)' }}>修改</span><span className="sa">›</span></div></div></div>
-        <div className="sec">存储</div>
-        <div className="sc2"><div className="sr2"><div className="sic">💾</div><div className="sif"><div className="sn">本地存储</div><div className="ss">已用 12MB</div></div><span className="free-b">免费</span></div><div className="sr2"><div className="sic">☁️</div><div className="sif"><div className="sn">云端同步</div><div className="ss">多设备访问 · 自动备份</div></div><div className="tog off"><div className="tok"></div></div></div></div>
-        <div className="sec">通知</div>
-        <div className="sc2"><div className="sr2"><div className="sic">🔔</div><div className="sif"><div className="sn">复查提醒通知</div><div className="ss">浏览器通知</div></div><div className="tog"><div className="tok"></div></div></div><div className="sr2"><div className="sic">✉️</div><div className="sif"><div className="sn">邮件提醒</div><div className="ss">zhang@example.com</div></div><div className="tog"><div className="tok"></div></div></div></div>
-        <div className="sec">订阅</div>
-        <div className="sc2"><div className="sr2"><div className="sic">⭐</div><div className="sif"><div className="sn">当前方案</div><div className="ss">免费版 · AI识别剩余3次</div></div><span className="up-b">升级</span></div></div>
-        <div className="vn">结节档案 v1.0.0 · 数据仅供参考，不构成诊断</div>
-      </div>
-    </div>
-  );
-}
-
 export default function SettingsPage() {
-  const { prototypeUi005Seed, prototypePremiumSeed } = useLocalSearchParams<{ prototypeUi005Seed?: string; prototypePremiumSeed?: string }>();
-  const demoSeed = isDemoSeed(prototypeUi005Seed);
-  const premiumDemoSeed = isDemoSeed(prototypePremiumSeed);
   const { user, signOut } = useAuth();
   const accountKey = user?.id ?? user?.phone ?? null;
-  const { data: storedSubscriptionStatus, isLoading: storedSubscriptionLoading } = useSubscriptionStatus(accountKey);
+  const { data: subscriptionStatus, isLoading: subscriptionLoading } = useSubscriptionStatus(accountKey);
   const [cloudSyncResult, setCloudSyncResult] = useState('');
-  const { data: storedProfiles = [] } = useProfiles();
-  const subscriptionStatus = premiumDemoSeed
-    ? PROTOTYPE_REVIEW_PREMIUM_STATUS
-    : demoSeed
-      ? PROTOTYPE_REVIEW_SUBSCRIPTION_STATUS
-      : storedSubscriptionStatus;
-  const subscriptionLoading = demoSeed || premiumDemoSeed ? false : storedSubscriptionLoading;
-  const profiles = demoSeed ? PROTOTYPE_REVIEW_PROFILES : storedProfiles;
+  const { data: profiles = [] } = useProfiles();
+  const { data: archiveSnapshot } = useQuery({
+    queryKey: ['settings', 'archive-snapshot'],
+    queryFn: readLocalArchiveSettingsSnapshot,
+  });
 
   const maskedPhone = user?.phone
     ? user.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')
@@ -115,8 +90,11 @@ export default function SettingsPage() {
   })();
 
   const cloudSyncSubtitle = subscriptionStatus?.isCloudSyncEnabled
-    ? cloudSyncResult || '会员已开启 · 点击立即同步'
+    ? cloudSyncResult || `会员已开启 · ${archiveSnapshot?.profileCount ?? 0}个档案可同步`
     : '会员可用 · 本地优先保存';
+  const localStorageSubtitle = formatLocalArchiveStorage(archiveSnapshot);
+  const reminderContactSubtitle = formatReminderContact(user);
+  const notificationSubtitle = formatNotificationState();
 
   const profileSummary = useMemo(() => {
     if (profiles.length === 0) return '暂无档案';
@@ -127,10 +105,6 @@ export default function SettingsPage() {
   }, [profiles]);
 
   const appVersion = Constants.expoConfig?.version ?? '1.0.0';
-
-  if (Platform.OS === 'web' && demoSeed && !premiumDemoSeed) {
-    return <DemoSettingsPage />;
-  }
 
   return (
     <SafeAreaView className="flex-1 bg-page-bg">
@@ -160,7 +134,7 @@ export default function SettingsPage() {
           <SettingsRow
             icon="💾"
             title="本地存储"
-            subtitle="已用 12MB"
+            subtitle={localStorageSubtitle}
             trailing={<Badge text="免费" variant="stable" />}
             disabled
           />
@@ -169,15 +143,14 @@ export default function SettingsPage() {
             title="云端同步"
             subtitle={cloudSyncSubtitle}
             onPress={() => {
-              if (premiumDemoSeed) {
-                setCloudSyncResult('云端同步完成 · 5项');
-                return;
-              }
-
               setCloudSyncResult('云端同步中…');
               void syncCloudArchiveIfEntitled(subscriptionStatus)
                 .then((result) => {
-                  setCloudSyncResult(result.skipped ? '尚未开通云端同步' : `云端同步完成 · ${result.syncedCount}项`);
+                  setCloudSyncResult(
+                    result.skipped
+                      ? '尚未开通云端同步'
+                      : `云端同步完成 · ${result.syncedCount}项${typeof result.readbackCount === 'number' ? ` · 读回${result.readbackCount}项` : ''}`
+                  );
                 })
                 .catch((e) => {
                   setCloudSyncResult(e instanceof Error ? `同步失败：${e.message}` : '同步失败，请稍后重试');
@@ -193,15 +166,15 @@ export default function SettingsPage() {
           <SettingsRow
             icon="🔔"
             title="复查提醒通知"
-            subtitle="浏览器通知"
-            trailing={<Badge text="开启" variant="stable" />}
+            subtitle={notificationSubtitle}
+            trailing={<Badge text={archiveSnapshot?.activeReminderCount ? '已规划' : '待设置'} variant={archiveSnapshot?.activeReminderCount ? 'stable' : 'neutral'} />}
             disabled
           />
           <SettingsRow
             icon="✉️"
-            title="邮件提醒"
-            subtitle="zhang@example.com"
-            trailing={<Badge text="开启" variant="stable" />}
+            title="提醒联系方式"
+            subtitle={reminderContactSubtitle}
+            trailing={<Badge text={user?.phone ? '已绑定' : '未绑定'} variant={user?.phone ? 'stable' : 'neutral'} />}
             disabled
           />
         </Card>

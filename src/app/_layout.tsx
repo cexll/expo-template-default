@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import React from 'react';
 import { AppErrorBoundary } from '@/components/app-error-boundary';
 import { AuthGuard } from '@/components/AuthGuard';
+import { ReminderSideEffectRunner } from '@/components/reminder-side-effect-runner';
 import { AppProviders } from '@/providers/app-providers';
 import '@/global.css';
 import './pixel-auth-home-paywall.css';
@@ -12,6 +13,7 @@ export default function RootLayout() {
   return (
     <AppProviders>
       <AuthGuard />
+      <ReminderSideEffectRunner />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(main)" />
         <Stack.Screen name="(auth)" />
@@ -23,6 +25,7 @@ export default function RootLayout() {
         <Stack.Screen name="summary/[profileId]" />
         <Stack.Screen name="subscription/index" />
         <Stack.Screen name="subscription/success" />
+        <Stack.Screen name="validation-ui-evidence" />
         <Stack.Screen name="entry/[slug]" />
         <Stack.Screen name="+not-found" />
       </Stack>

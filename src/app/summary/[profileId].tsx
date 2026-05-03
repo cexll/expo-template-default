@@ -15,14 +15,6 @@ import { useProfile } from '@/hooks/useProfiles';
 import { useActiveReminders } from '@/hooks/useReminders';
 import { canUseFeature, consumeSubscriptionQuota, subscriptionKeys, useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
 import type { Examination, Lesion } from '@/lib/db/types';
-import {
-  isDemoSeed,
-  PROTOTYPE_REVIEW_EXAMINATIONS,
-  PROTOTYPE_REVIEW_LESIONS,
-  PROTOTYPE_REVIEW_PROFILE,
-  PROTOTYPE_REVIEW_REMINDERS,
-  PROTOTYPE_REVIEW_SUBSCRIPTION_STATUS,
-} from '@/lib/prototype-review';
 import { bumpLocalSummaryExportUsed, formatLocalMonth } from '@/lib/subscription/local-quota';
 import { exportSummaryImage } from '@/lib/summary/export-image';
 import { renderSummaryExportImage } from '@/lib/summary/render-export-image';
@@ -138,43 +130,20 @@ function getRemainingDays(nextExamDate: string | null | undefined) {
   return Math.ceil((target.getTime() - today.getTime()) / 86400000);
 }
 
-function DemoSummaryPage() {
-  const now = new Date();
-  const age = now.getFullYear() - 1978;
-  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-
-  return (
-    <div className="screen active" style={{ display: 'flex' }}>
-      <div className="topbar"><button className="tb-back">← 返回</button><span className="tb-page">就诊摘要</span><button className="tb-btn">导出图片</button></div>
-      <div className="scrl">
-        <div className="pc"><div className="ptop"><div className="pname">张女士</div><div style={{ textAlign: 'right' }}><div className="pdlbl">生成日期</div><div className="pdval">{dateStr}</div></div></div><div className="pmeta"><div className="pm"><span className="pml">性别</span><span className="pmv">女</span></div><div className="pm"><span className="pml">年龄</span><span className="pmv" style={{ fontFamily: 'var(--mono)', fontSize: 13 }}>{age}岁</span></div><div className="pm"><span className="pml">在档病灶</span><span className="pmv">共3处</span></div></div></div>
-        <div className="stats-row"><div className="sc"><div className="scv">3</div><div className="scl">在档病灶</div></div><div className="sc"><div className="scv">8</div><div className="scl">检查记录</div></div><div className="sc-a"><div className="scva">1</div><div className="scl">需关注</div></div></div>
-        <div className="sec">甲状腺</div>
-        <div className="nblk"><div className="nbh"><div><div className="nbn">左叶中下段结节</div><div className="nbloc">甲状腺 · 左叶</div></div><span className="bdge b-up">▲ 增大</span></div><div className="nbb"><div className="sr"><div><div className="smv">8.3mm</div><div className="smu">最新大小</div></div><div className="dright"><div className="di"><span className="dl">较上次</span><span className="dv">+0.5mm</span><span className="dp">+6%</span></div><div className="di"><span className="dl">较基线</span><span className="dv">+1.2mm</span><span className="dp">+17%</span></div></div></div><div className="mini-tl" style={{ marginBottom: 9, paddingBottom: 9, borderBottom: '0.5px solid #f5f2ee' }}><div className="tl-pt"><div className="tl-v">7.1</div><div className="tl-d" /><div className="tl-dt">2023-03</div></div><div className="tl-conn" /><div className="tl-pt"><div className="tl-v">7.8</div><div className="tl-d" /><div className="tl-dt">2023-09</div></div><div className="tl-conn" /><div className="tl-pt"><div className="tl-vn">8.3</div><div className="tl-dn" /><div className="tl-dt" style={{ color: 'var(--amber)' }}>2024-03</div></div></div><div className="qrow" style={{ padding: '0 0 6px 0' }}><div className="qf">TI-RADS</div><div className="qvs"><span className="qv">3级</span><span className="qarr">→</span><span className="qv">3级</span><span className="qarr">→</span><span className="qvn">3级</span></div><span className="qtag qt-s">未变</span></div><div className="qrow" style={{ padding: '6px 0 0 0' }}><div className="qf">钙化</div><div className="qvs"><span className="qv">无</span><span className="qarr">→</span><span className="qv">无</span><span className="qarr">→</span><span className="qva">点状强回声</span></div><span className="qtag qt-n">新出现</span></div></div><div className="nbf"><span className="nfl">建议复查</span><span className="nfd-s">2024-09-15 · 还有23天</span></div></div>
-        <div className="fn">本摘要由「结节档案」生成，仅供医生参考，不构成诊断意见。</div>
-      </div>
-      <div className="exp-bar"><button className="btn-p">保存为图片</button><button className="btn-s">分享</button></div>
-    </div>
-  );
-}
-
 function formatChangeBadgeValue(change: ReturnType<typeof calcChange>) {
   return `${formatSignedDiff(change.diff)}mm (${change.pct > 0 ? '+' : ''}${change.pct}%)`;
 }
 
 export default function SummaryPage() {
-  const { profileId, prototypeUi005Seed } = useLocalSearchParams<{ profileId: string; prototypeUi005Seed?: string }>();
-  const demoSeed = isDemoSeed(prototypeUi005Seed);
-  const id = demoSeed ? PROTOTYPE_REVIEW_PROFILE.id : typeof profileId === 'string' ? profileId : '';
+  const { profileId } = useLocalSearchParams<{ profileId: string }>();
+  const id = typeof profileId === 'string' ? profileId : '';
 
   const { user } = useAuth();
   const accountKey = user?.id ?? user?.phone ?? null;
   const profileQuery = useProfile(id);
-  const profile = demoSeed ? PROTOTYPE_REVIEW_PROFILE : profileQuery.data;
-  const { data: storedLesions = [] } = useLesions(id);
-  const { data: storedReminders = [] } = useActiveReminders(id);
-  const lesions = demoSeed ? PROTOTYPE_REVIEW_LESIONS.filter((lesion) => lesion.profile_id === id) : storedLesions;
-  const reminders = demoSeed ? PROTOTYPE_REVIEW_REMINDERS : storedReminders;
+  const profile = profileQuery.data;
+  const { data: lesions = [] } = useLesions(id);
+  const { data: reminders = [] } = useActiveReminders(id);
   const queryClient = useQueryClient();
 
   const viewShotRef = useRef<any>(null);
@@ -182,9 +151,7 @@ export default function SummaryPage() {
   const [exportError, setExportError] = useState('');
   const [paywallVisible, setPaywallVisible] = useState(false);
 
-  const { data: storedSubscriptionStatus, isLoading: storedSubscriptionLoading } = useSubscriptionStatus(accountKey);
-  const subscriptionStatus = demoSeed ? PROTOTYPE_REVIEW_SUBSCRIPTION_STATUS : storedSubscriptionStatus;
-  const subscriptionLoading = demoSeed ? false : storedSubscriptionLoading;
+  const { data: subscriptionStatus, isLoading: subscriptionLoading } = useSubscriptionStatus(accountKey);
 
   const activeLesions = useMemo(() => lesions.filter((lesion) => lesion.is_archived === 0), [lesions]);
   const age = profile ? new Date().getFullYear() - profile.birth_year : 0;
@@ -193,7 +160,7 @@ export default function SummaryPage() {
     queries: activeLesions.map((lesion) => ({
       queryKey: ['examinations', 'lesion', lesion.id],
       queryFn: () => listExaminationsByLesion(lesion.id),
-      enabled: Boolean(lesion.id) && !demoSeed,
+      enabled: Boolean(lesion.id),
     })),
   });
 
@@ -207,7 +174,7 @@ export default function SummaryPage() {
 
   const lesionBlocks = useMemo(() => {
     return activeLesions.map((lesion, index) => {
-      const allExams = demoSeed ? PROTOTYPE_REVIEW_EXAMINATIONS[lesion.id] ?? [] : examinations[index]?.data ?? [];
+      const allExams = examinations[index]?.data ?? [];
       const windowExams = allExams.slice(0, 3);
 
       const latest = allExams[0] ?? null;
@@ -285,7 +252,7 @@ export default function SummaryPage() {
         remainingDays,
       };
     });
-  }, [activeLesions, demoSeed, examinations, remindersByLesionId]);
+  }, [activeLesions, examinations, remindersByLesionId]);
 
   const totalExamCount = useMemo(() => {
     return lesionBlocks.reduce((sum, lesion) => sum + lesion.examCount, 0);
@@ -320,7 +287,7 @@ export default function SummaryPage() {
       setExportError('无法获取会员状态，请稍后重试');
       return;
     }
-    if (demoSeed || !canUseFeature(subscriptionStatus, 'summary_export')) {
+    if (!canUseFeature(subscriptionStatus, 'summary_export')) {
       setExportError('本月导出次数已用完');
       setPaywallVisible(true);
       return;
@@ -405,11 +372,7 @@ export default function SummaryPage() {
     } finally {
       setExporting(false);
     }
-  }, [accountKey, age, demoSeed, id, lesionBlocks, needsAttention, profile, queryClient, subscriptionLoading, subscriptionStatus, totalExamCount]);
-
-  if (Platform.OS === 'web' && demoSeed) {
-    return <DemoSummaryPage />;
-  }
+  }, [accountKey, age, id, lesionBlocks, needsAttention, profile, queryClient, subscriptionLoading, subscriptionStatus, totalExamCount]);
 
   if (!id) {
     return (
@@ -638,7 +601,8 @@ export default function SummaryPage() {
         visible={paywallVisible}
         onClose={() => setPaywallVisible(false)}
         feature="就诊摘要导出"
-        reviewSeed={demoSeed ? 'prototypeUi005Seed=demo' : undefined}
+        status={subscriptionStatus}
+        reviewSeed={undefined}
       />
     </SafeAreaView>
   );

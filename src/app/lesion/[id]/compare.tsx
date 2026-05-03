@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ChangeBadge } from '@/components/ChangeBadge';
 import { ComparisonRow } from '@/components/ComparisonRow';
@@ -49,109 +48,6 @@ function formatMonth(value: string) {
 function formatTimelineValue(value: number | null | undefined) {
   return typeof value === 'number' && !Number.isNaN(value) ? value.toFixed(1).replace(/\.0$/, '') : '—';
 }
-
-function isDemoSeed(value: unknown): boolean {
-  return (Array.isArray(value) ? value[0] : value) === 'demo';
-}
-
-const PROTOTYPE_DETAIL_LESION: Lesion = {
-  id: 'lesion-1',
-  profile_id: 'prototype-profile-self',
-  disease_type: 'thyroid',
-  label: '左叶中下段结节',
-  location: '左叶中下段',
-  is_archived: 0,
-  created_at: '2023-03-05T00:00:00.000Z',
-  updated_at: '2024-03-15T00:00:00.000Z',
-};
-
-const PROTOTYPE_DETAIL_EXAMINATIONS: Examination[] = [
-  {
-    id: 'prototype-exam-latest',
-    lesion_id: 'lesion-1',
-    exam_date: '2024-03-15',
-    hospital: '重庆市第一人民医院',
-    size_x: 8.3,
-    size_y: 5.8,
-    size_z: 6.1,
-    tirads: '3',
-    echo_type: '低回声',
-    border: '尚清',
-    calcification: '点状强回声',
-    blood_flow: '少量血流',
-    birads: null,
-    shape: null,
-    orientation: null,
-    lung_rads: null,
-    density: null,
-    morphology: null,
-    pleural_pull: null,
-    ai_raw_json: null,
-    notes: null,
-    created_at: '2024-03-15T00:00:00.000Z',
-    updated_at: '2024-03-15T00:00:00.000Z',
-  },
-  {
-    id: 'prototype-exam-previous',
-    lesion_id: 'lesion-1',
-    exam_date: '2023-09-10',
-    hospital: '重庆市第一人民医院',
-    size_x: 7.8,
-    size_y: 5.2,
-    size_z: 5.8,
-    tirads: '3',
-    echo_type: '低回声',
-    border: '尚清',
-    calcification: '无明显钙化',
-    blood_flow: '少量血流',
-    birads: null,
-    shape: null,
-    orientation: null,
-    lung_rads: null,
-    density: null,
-    morphology: null,
-    pleural_pull: null,
-    ai_raw_json: null,
-    notes: null,
-    created_at: '2023-09-10T00:00:00.000Z',
-    updated_at: '2023-09-10T00:00:00.000Z',
-  },
-  {
-    id: 'prototype-exam-baseline',
-    lesion_id: 'lesion-1',
-    exam_date: '2023-03-05',
-    hospital: '重庆市第一人民医院',
-    size_x: 7.1,
-    size_y: null,
-    size_z: null,
-    tirads: '3',
-    echo_type: '低回声',
-    border: '清楚',
-    calcification: '无明显钙化',
-    blood_flow: '未见明显血流',
-    birads: null,
-    shape: null,
-    orientation: null,
-    lung_rads: null,
-    density: null,
-    morphology: null,
-    pleural_pull: null,
-    ai_raw_json: null,
-    notes: null,
-    created_at: '2023-03-05T00:00:00.000Z',
-    updated_at: '2023-03-05T00:00:00.000Z',
-  },
-];
-
-const PROTOTYPE_DETAIL_REMINDER = {
-  id: 'prototype-reminder-detail',
-  lesion_id: 'lesion-1',
-  next_exam_date: '2024-09-15',
-  source: 'auto' as const,
-  is_active: 1,
-  created_at: '2024-03-15T00:00:00.000Z',
-  updated_at: '2024-03-15T00:00:00.000Z',
-};
 
 function getDiseaseLabel(diseaseType: Lesion['disease_type']) {
   switch (diseaseType) {
@@ -218,14 +114,13 @@ function getQualRows(diseaseType: Lesion['disease_type']): QualRowSpec[] {
 }
 
 export default function ComparePage() {
-  const params = useLocalSearchParams<{ id: string; prototypeDetailSeed?: string }>();
+  const params = useLocalSearchParams<{ id: string }>();
 
   const lesionId = typeof params.id === 'string' ? params.id : '';
-  const demoSeed = isDemoSeed(params.prototypeDetailSeed);
   const { data: storedLesion } = useLesion(lesionId);
   const { data: storedExaminations = [] } = useExaminations(lesionId);
-  const lesion = demoSeed ? PROTOTYPE_DETAIL_LESION : storedLesion;
-  const examinations = demoSeed ? PROTOTYPE_DETAIL_EXAMINATIONS : storedExaminations;
+  const lesion = storedLesion;
+  const examinations = storedExaminations;
 
   const totalCount = examinations.length;
 
@@ -237,8 +132,8 @@ export default function ComparePage() {
 
   const { data: storedReminders = [] } = useRemindersByLesion(lesionId);
   const reminders = useMemo(
-    () => (demoSeed ? [PROTOTYPE_DETAIL_REMINDER] : storedReminders),
-    [demoSeed, storedReminders]
+    () => storedReminders,
+    [storedReminders]
   );
   const createReminder = useCreateReminder();
   const updateReminder = useUpdateReminder();
@@ -421,7 +316,15 @@ export default function ComparePage() {
     if (activeReminder) {
       await updateReminder.mutateAsync({
         id: activeReminder.id,
-        updates: { next_exam_date: iso, source: 'manual', is_active: 1 },
+        updates: {
+          next_exam_date: iso,
+          source: 'manual',
+          is_active: 1,
+          remind1m_sent: 0,
+          remind1w_sent: 0,
+          remind3d_sent: 0,
+          remind0d_sent: 0,
+        },
       });
     } else {
       await createReminder.mutateAsync({
@@ -506,24 +409,6 @@ export default function ComparePage() {
   const radsLabel = getRadsLabel(lesion.disease_type);
   const radsValue = latest?.[getRadsRowKey(lesion.disease_type)] ?? null;
   const radsMeta = typeof radsValue === 'string' && radsValue ? `${radsLabel} ${lesion.disease_type === 'breast' ? radsValue : `${radsValue}级`}` : '';
-
-  if (Platform.OS === 'web' && demoSeed) {
-    return (
-      <div className="screen active" style={{ display: 'flex' }}>
-        <div className="topbar"><button className="tb-back" onClick={() => router.replace('/lesion/lesion-1?prototypeDetailSeed=demo')}>← 档案</button><span className="tb-page">横向对比</span><button className="tb-btn" onClick={() => router.push('/summary/prototype-profile-self')}>就诊摘要</button></div>
-        <div className="ninfo"><div className="nn">左叶中下段结节</div><div className="nm">甲状腺 · TI-RADS 3级 · 共3次记录</div></div>
-        <div className="cbar"><button className="c2 c-on">最近3次</button><button className="c2 c-off">最近5次</button><button className="c2 c-off">自定义</button></div>
-        <div className="scrl">
-          <div className="size-c"><div className="size-main"><div><div className="sv-big">8.3</div><div className="su">mm · 最新</div></div><div className="dlts"><div className="dlt"><span className="dlt-l">较上次</span><span className="dlt-v">+0.5mm</span><span className="dlt-p">+6%</span></div><div className="dlt"><span className="dlt-l">较基线</span><span className="dlt-v">+1.2mm</span><span className="dlt-p">+17%</span></div></div></div><div className="mini-tl"><div className="tl-pt"><div className="tl-v">7.1</div><div className="tl-d" /><div className="tl-dt">2023-03</div></div><div className="tl-conn" /><div className="tl-pt"><div className="tl-v">7.8</div><div className="tl-d" /><div className="tl-dt">2023-09</div></div><div className="tl-conn" /><div className="tl-pt"><div className="tl-vn">8.3</div><div className="tl-dn" /><div className="tl-dt" style={{ color: 'var(--amber)' }}>2024-03 ★</div></div></div></div>
-          <div className="sec">指标状态</div>
-          <div className="qual-c"><div className="qrow"><div className="qf">TI-RADS</div><div className="qvs"><span className="qv">3级</span><span className="qarr">→</span><span className="qv">3级</span><span className="qarr">→</span><span className="qvn">3级</span></div><span className="qtag qt-s">未变</span></div><div className="qrow-a"><div className="qf">钙化</div><div className="qvs"><span className="qv">无</span><span className="qarr">→</span><span className="qv">无</span><span className="qarr">→</span><span className="qva">点状强回声</span></div><span className="qtag qt-n">新出现</span></div><div className="qrow"><div className="qf">回声</div><div className="qvs"><span className="qv">低回声</span><span className="qarr">→</span><span className="qv">低回声</span><span className="qarr">→</span><span className="qvn">低回声</span></div><span className="qtag qt-s">未变</span></div><div className="qrow"><div className="qf">边界</div><div className="qvs"><span className="qv">清晰</span><span className="qarr">→</span><span className="qv">清晰</span><span className="qarr">→</span><span className="qvn">清晰</span></div><span className="qtag qt-s">未变</span></div><div style={{ background: 'var(--page)', padding: '6px 13px', borderTop: '0.5px solid #f0ece6', display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: 10, color: 'var(--gray)' }}>首次 2023-03</span><span style={{ fontSize: 10, color: 'var(--gray)' }}>间隔 6个月</span><span style={{ fontSize: 10, color: 'var(--amber)' }}>2024-03</span></div></div>
-          <div className="sum-c"><div className="sum-t">变化小结</div><div className="sum-x">较基线增大 1.2mm（+17%），较上次增大 0.5mm（+6%）。本次新见点状强回声，TI-RADS 级别未变。建议按期复查。</div></div>
-          <div className="remind-c"><div><div className="rlbl">下次建议复查</div><div className="rdt">2024-09-15</div></div><button className="redit">修改</button></div>
-          <div className="btn-row"><button className="btn-p" onClick={() => router.push('/summary/prototype-profile-self')}>生成就诊摘要</button><button className="btn-s" onClick={() => router.push('/record/recognize?prototypeRecognitionSeed=demo')}>新增记录</button></div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <SafeAreaView className="flex-1 bg-page-bg">

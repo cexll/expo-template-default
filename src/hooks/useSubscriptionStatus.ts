@@ -10,7 +10,13 @@ export type SubscriptionStatus = {
   isActive: boolean;
   expiresAt: string | null;
   isCloudSyncEnabled?: boolean;
+  cloudSyncReason?: string;
   featureRemaining?: Record<string, number>;
+  freeLimits?: {
+    profiles?: number;
+    lesionsPerProfile?: number;
+    recordsPerLesion?: number;
+  };
 };
 
 export const subscriptionKeys = {
@@ -27,6 +33,24 @@ function pickBoolean(value: unknown) {
 
 function pickNumber(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function pickObject(value: unknown) {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : null;
+}
+
+function pickLimit(value: unknown) {
+  const limitInfo = pickObject(value);
+  if (!limitInfo) return null;
+  const unlimited = pickBoolean(limitInfo.unlimited) ?? false;
+  if (unlimited) return undefined;
+  return pickNumber(limitInfo.limit);
+}
+
+function normalizeQuotaKey(key: string) {
+  if (key === 'aiQuota') return 'ai_recognize';
+  if (key === 'summaryExportQuota') return 'summary_export';
+  return key;
 }
 
 export function normalizeSubscriptionStatus(raw: unknown, accountKey?: string | null): SubscriptionStatus {
@@ -69,7 +93,7 @@ export function normalizeSubscriptionStatus(raw: unknown, accountKey?: string | 
     for (const [key, value] of Object.entries(features as Record<string, unknown>)) {
       if (!value || typeof value !== 'object') continue;
       const remaining = tryReadRemaining((value as Record<string, unknown>).remaining);
-      if (remaining !== null) featureRemaining[key] = remaining;
+      if (remaining !== null) featureRemaining[normalizeQuotaKey(key)] = remaining;
     }
   }
 
@@ -86,8 +110,16 @@ export function normalizeSubscriptionStatus(raw: unknown, accountKey?: string | 
     if (!quotaMap || typeof quotaMap !== 'object') continue;
     for (const [key, value] of Object.entries(quotaMap as Record<string, unknown>)) {
       const remaining = tryReadQuotaRemaining(value);
-      if (remaining !== null) featureRemaining[key] = remaining;
+      if (remaining !== null) featureRemaining[normalizeQuotaKey(key)] = remaining;
     }
+  }
+
+  for (const quotaKey of ['ai_quota', 'aiQuota', 'summary_export_quota', 'summaryExportQuota']) {
+    const quota = pickObject(record[quotaKey]);
+    if (!quota) continue;
+    const remaining = tryReadRemaining(quota.remaining) ?? tryReadQuotaRemaining(quota);
+    const key = pickString(quota.key) ?? normalizeQuotaKey(quotaKey);
+    if (remaining !== null) featureRemaining[normalizeQuotaKey(key)] = remaining;
   }
 
   for (const featureKey of ['ai_recognize', 'summary_export']) {
@@ -142,14 +174,30 @@ export function normalizeSubscriptionStatus(raw: unknown, accountKey?: string | 
     }
   }
 
-  const cloudSyncEnabled = pickBoolean(record.cloud_sync_enabled) ?? pickBoolean(record.cloudSyncEnabled) ?? undefined;
+  const cloudEntitlement = pickObject(record.cloud_sync_entitlement) ?? pickObject(record.cloudSyncEntitlement);
+  const cloudSyncEnabled =
+    pickBoolean(record.cloud_sync_enabled) ??
+    pickBoolean(record.cloudSyncEnabled) ??
+    (cloudEntitlement ? pickBoolean(cloudEntitlement.enabled) ?? undefined : undefined);
+  const cloudSyncReason = cloudEntitlement ? pickString(cloudEntitlement.reason) ?? undefined : undefined;
+
+  const profileLimit = pickLimit(record.profile_limit ?? record.profileLimit);
+  const lesionLimit = pickLimit(record.lesion_limit ?? record.lesionLimit);
+  const recordLimit = pickLimit(record.record_limit ?? record.recordLimit);
+  const freeLimits = {
+    ...(typeof profileLimit === 'number' ? { profiles: profileLimit } : {}),
+    ...(typeof lesionLimit === 'number' ? { lesionsPerProfile: lesionLimit } : {}),
+    ...(typeof recordLimit === 'number' ? { recordsPerLesion: recordLimit } : {}),
+  };
 
   return {
     plan,
     isActive,
     expiresAt,
     isCloudSyncEnabled: cloudSyncEnabled,
+    cloudSyncReason,
     featureRemaining: Object.keys(featureRemaining).length > 0 ? featureRemaining : undefined,
+    freeLimits: Object.keys(freeLimits).length > 0 ? freeLimits : undefined,
   };
 }
 

@@ -135,15 +135,44 @@ describe('ComparePage', () => {
     expect(screen.getByText('新增记录')).toBeTruthy();
   });
 
-  it('renders seeded prototype comparison state for browser review without local data', () => {
-    mockUseLocalSearchParams.mockReturnValue({ id: 'lesion-1', prototypeDetailSeed: 'demo' });
-    mockUseLesion.mockReturnValue({ data: undefined });
-    mockUseExaminations.mockReturnValue({ data: [] });
-    mockUseRemindersByLesion.mockReturnValue({ data: [] });
+  it('renders seeded repository comparison state for browser review evidence', () => {
+    mockUseLocalSearchParams.mockReturnValue({ id: 'lesion-1' });
+    mockUseLesion.mockReturnValue({
+      data: {
+        id: 'lesion-1',
+        profile_id: 'profile-1',
+        disease_type: 'thyroid',
+        label: '甲状腺左叶结节',
+        location: '左叶中下段',
+        is_archived: 0,
+        created_at: '2026-04-13T00:00:00.000Z',
+        updated_at: '2026-04-13T00:00:00.000Z',
+      },
+    });
+    mockUseExaminations.mockReturnValue({
+      data: [
+        buildExam({ id: 'latest', exam_date: '2024-03-15', size_x: 8.3, size_y: 5.8, size_z: 6.1, tirads: '3', calcification: '点状强回声' }),
+        buildExam({ id: 'prev', exam_date: '2023-09-10', size_x: 7.8, size_y: 5.2, size_z: 5.8, tirads: '3', calcification: '无' }),
+        buildExam({ id: 'base', exam_date: '2023-03-05', size_x: 7.1, tirads: '3', calcification: '无' }),
+      ],
+    });
+    mockUseRemindersByLesion.mockReturnValue({
+      data: [
+        {
+          id: 'rem-1',
+          lesion_id: 'lesion-1',
+          next_exam_date: '2026-05-18',
+          source: 'auto',
+          is_active: 1,
+          created_at: '2026-04-13T00:00:00.000Z',
+          updated_at: '2026-04-13T00:00:00.000Z',
+        },
+      ],
+    });
 
     render(<ComparePage />);
 
-    expect(screen.getByText('左叶中下段结节')).toBeTruthy();
+    expect(screen.getByText('甲状腺左叶结节')).toBeTruthy();
     expect(screen.getByText('指标状态')).toBeTruthy();
     expect(screen.getByText('2024-03 ★')).toBeTruthy();
     expect(screen.getByText('下次建议复查日')).toBeTruthy();
@@ -395,7 +424,15 @@ describe('ComparePage', () => {
 
     expect(mockUpdateReminderMutateAsync).toHaveBeenCalledWith({
       id: 'rem-1',
-      updates: { next_exam_date: '2025-01-10', source: 'manual', is_active: 1 },
+      updates: {
+        next_exam_date: '2025-01-10',
+        source: 'manual',
+        is_active: 1,
+        remind1m_sent: 0,
+        remind1w_sent: 0,
+        remind3d_sent: 0,
+        remind0d_sent: 0,
+      },
     });
 
     fireEvent.press(screen.getByText('修改'));

@@ -1,7 +1,8 @@
 import { Modal, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { Button } from './ui/Button';
-import { PAYWALL_MEMBER_FEATURES } from '@/lib/subscription/catalog';
+import type { SubscriptionStatus } from '@/hooks/useSubscriptionStatus';
+import { PAYWALL_MEMBER_FEATURES, SUBSCRIPTION_COMPARISON_ROWS } from '@/lib/subscription/catalog';
 import { Pressable, Text, View } from '@/tw';
 
 export type PaywallSheetProps = {
@@ -12,6 +13,7 @@ export type PaywallSheetProps = {
   subtitle?: string;
   ctaLabel?: string;
   reviewSeed?: string;
+  status?: SubscriptionStatus | null;
 };
 
 function FeatureRow({ text }: { text: string }) {
@@ -23,7 +25,28 @@ function FeatureRow({ text }: { text: string }) {
   );
 }
 
-export function PaywallSheet({ visible, onClose, feature, title, subtitle, ctaLabel, reviewSeed }: PaywallSheetProps) {
+function remainingForFeature(status: SubscriptionStatus | null | undefined, feature: string) {
+  if (feature === 'AI识别') return status?.featureRemaining?.ai_recognize;
+  if (feature === '就诊摘要导出') return status?.featureRemaining?.summary_export;
+  return undefined;
+}
+
+function freeQuotaLabel(feature: string) {
+  const row = SUBSCRIPTION_COMPARISON_ROWS.find((item) => item.name === feature || feature.includes(item.name));
+  return row?.free ?? '免费额度';
+}
+
+function formatPlanLabel(plan: SubscriptionStatus['plan']) {
+  if (plan === 'yearly') return '年度会员';
+  if (plan === 'monthly') return '月度会员';
+  if (plan === 'free') return '免费版';
+  return plan;
+}
+
+export function PaywallSheet({ visible, onClose, feature, title, subtitle, ctaLabel, reviewSeed, status }: PaywallSheetProps) {
+  const remaining = remainingForFeature(status, feature);
+  const currentPlan = status ? formatPlanLabel(status.plan) : '免费版';
+  const quotaLabel = freeQuotaLabel(feature);
   const resolvedKicker = '升级解锁';
   const resolvedHeadline =
     title ??
@@ -34,9 +57,7 @@ export function PaywallSheet({ visible, onClose, feature, title, subtitle, ctaLa
         : '升级会员');
   const resolvedSubtitle =
     subtitle ??
-    (feature === 'AI识别'
-      ? '本月免费额度已用尽（5次/月）\n升级会员，享受无限次AI识别'
-      : `本月${feature}免费额度已用尽\n升级会员后可无限使用`);
+    `${currentPlan}${typeof remaining === 'number' ? `当前剩余 ${remaining} 次` : `包含${quotaLabel}`}\n升级会员后可继续使用${feature}`;
   const resolvedCta = ctaLabel ?? (feature === 'AI识别' ? '立即升级 · ¥399/年' : '查看会员方案');
 
   if (Platform.OS === 'web' && visible) {
@@ -46,7 +67,7 @@ export function PaywallSheet({ visible, onClose, feature, title, subtitle, ctaLa
           <button className="paywall-close" onClick={onClose}>×</button>
           <div className="paywall-icon">✦</div>
           <div className="paywall-title">{resolvedHeadline}</div>
-          <div className="paywall-sub">本月免费额度已用尽（5次/月）<br />升级会员，享受无限次AI识别</div>
+          <div className="paywall-sub">{resolvedSubtitle.split('\n').map((line, index) => <span key={line}>{index > 0 ? <br /> : null}{line}</span>)}</div>
           <div className="paywall-features">
             {PAYWALL_MEMBER_FEATURES.map((item) => (
               <div className="pf-row" key={item}><div className="pf-dot" /><span className="pf-text">{item}</span></div>

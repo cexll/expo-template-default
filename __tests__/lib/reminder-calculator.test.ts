@@ -1,4 +1,4 @@
-import { deriveAutoReminder } from '@/lib/reminder-calculator';
+import { buildReminderNodeFlags, deriveAutoReminder } from '@/lib/reminder-calculator';
 
 describe('deriveAutoReminder (PRD §4.6)', () => {
   it('keeps a manual next review date instead of replacing it with RADS auto derivation', () => {
@@ -72,5 +72,13 @@ describe('deriveAutoReminder (PRD §4.6)', () => {
     });
     expect(high.kind).toBe('no_auto');
     expect(high.nextExamDate).toBeNull();
+  });
+
+  it('projects PRD four reminder node sent flags from days until review', () => {
+    expect(buildReminderNodeFlags(45)).toEqual({ remind1m_sent: false, remind1w_sent: false, remind3d_sent: false, remind0d_sent: false });
+    expect(buildReminderNodeFlags(30)).toEqual({ remind1m_sent: true, remind1w_sent: false, remind3d_sent: false, remind0d_sent: false });
+    expect(buildReminderNodeFlags(7)).toEqual({ remind1m_sent: true, remind1w_sent: true, remind3d_sent: false, remind0d_sent: false });
+    expect(buildReminderNodeFlags(3)).toEqual({ remind1m_sent: true, remind1w_sent: true, remind3d_sent: true, remind0d_sent: false });
+    expect(buildReminderNodeFlags(0)).toEqual({ remind1m_sent: true, remind1w_sent: true, remind3d_sent: true, remind0d_sent: true });
   });
 });

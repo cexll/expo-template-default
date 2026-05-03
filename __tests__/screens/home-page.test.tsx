@@ -1,4 +1,5 @@
 import React from 'react';
+import { readFileSync } from 'node:fs';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Platform, StyleSheet } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -78,6 +79,14 @@ function renderWithQueryClient(node: React.ReactElement) {
 function isoDaysFromNow(days: number) {
   return new Date(Date.now() + days * 86400000).toISOString();
 }
+
+describe('HomePage production data boundary', () => {
+  it('keeps prototype arrays and fixed quota fallback copy out of the production route module', () => {
+    const routeSource = readFileSync(require.resolve('@/app/(main)/index'), 'utf8');
+
+    expect(routeSource).not.toMatch(/DEMO_HOME_|prototype-profile-|prototype-lesion-|prototypeHomeSeed|本月 AI 识别剩余 1 次/);
+  });
+});
 
 describe('HomePage UI parity', () => {
   const originalPlatformOsValue = Platform.OS;
@@ -221,6 +230,88 @@ describe('HomePage UI parity', () => {
     expect(screen.getByText('▲25%')).toBeTruthy();
     expect(screen.getByText('2次记录')).toBeTruthy();
     expect(screen.getByText(/天后复查/)).toBeTruthy();
+  });
+
+  it('keeps showing the Home follow-up banner for non-urgent reminders beyond 30 days', async () => {
+    listActiveRemindersByProfileMock.mockImplementation(async (profileId) => {
+      if (profileId !== 'profile_1') return [];
+      return [
+        {
+          id: 'reminder_1',
+          lesion_id: 'lesion_1',
+          next_exam_date: isoDaysFromNow(45),
+          source: 'auto',
+          is_active: 1,
+        } as any,
+      ];
+    });
+
+    renderWithQueryClient(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('阿明')).toBeTruthy();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/阿明的甲状腺复查还有 \d+ 天/)).toBeTruthy();
+    });
+  });
+
+  it('uses overdue inactive-profile reminder subtitle copy instead of negative countdown copy', async () => {
+    listProfilesMock.mockResolvedValue([
+      { id: 'profile_1', nickname: '本人' } as any,
+      { id: 'profile_2', nickname: '妈妈' } as any,
+    ]);
+
+    listLesionsByProfileMock.mockImplementation(async (profileId) => {
+      if (profileId === 'profile_1') {
+        return [
+          {
+            id: 'lesion_1',
+            profile_id: 'profile_1',
+            disease_type: 'thyroid',
+            label: '左叶结节',
+            location: '左叶',
+            is_archived: 0,
+          } as any,
+        ];
+      }
+      if (profileId === 'profile_2') {
+        return [
+          {
+            id: 'lesion_2',
+            profile_id: 'profile_2',
+            disease_type: 'breast',
+            label: '右乳结节',
+            location: '右侧',
+            is_archived: 0,
+          } as any,
+        ];
+      }
+      return [];
+    });
+
+    listActiveRemindersByProfileMock.mockImplementation(async (profileId) => {
+      if (profileId === 'profile_2') {
+        return [
+          {
+            id: 'reminder_2',
+            lesion_id: 'lesion_2',
+            next_exam_date: isoDaysFromNow(-3),
+            source: 'auto',
+            is_active: 1,
+          } as any,
+        ];
+      }
+      return [];
+    });
+
+    renderWithQueryClient(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('已逾期3天!')).toBeTruthy();
+    });
+    expect(screen.queryByText('-3天后!')).toBeNull();
   });
 
   it('defaults to the first profile, surfaces urgent inactive-chip copy and alert, and switches profile without stale bleed', async () => {
@@ -435,4 +526,3 @@ describe('HomePage UI parity', () => {
     );
   });
 });
-

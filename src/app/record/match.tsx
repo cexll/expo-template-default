@@ -1,27 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { SecondaryPageHeader } from '@/components/SecondaryPageHeader';
-import { buildLesionMatchSelection, scoreLesionMatch } from '@/lib/db/matching';
+import { buildLesionMatchSelection, scoreLesionMatch, scoreStoredLesionMatches } from '@/lib/db/matching';
 import type { Lesion } from '@/lib/db/types';
-import { createExamination, listExaminationsByLesion } from '@/lib/db/queries/examinations';
+import { listExaminationsByLesion } from '@/lib/db/queries/examinations';
 import { parseReportImageAssetsParam } from '@/lib/report-images';
 import { saveMatchRecordAtomic } from '@/lib/db/save-match-record';
 import { applyReminderSideEffects } from '@/lib/reminder-side-effects';
 import { useLesion, useLesions } from '@/hooks/useLesions';
+import { useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
 import { useActiveProfile } from '@/providers/active-profile-provider';
-import { createLesion } from '@/lib/db/queries/lesions';
-import { createReminder } from '@/lib/db/queries/reminders';
-import { createReportImage } from '@/lib/db/queries/report-images';
 import { Image, Pressable, SafeAreaView, ScrollView, Text, View } from '@/tw';
 
 type DiseaseType = Lesion['disease_type'];
-
-type DemoLesion = Pick<Lesion, 'id' | 'profile_id' | 'disease_type' | 'label' | 'location' | 'is_archived'>;
 
 const DISEASE_LABELS: Record<DiseaseType, string> = {
   thyroid: '甲状腺',
@@ -46,102 +41,6 @@ const RADS_LABEL_BY_DISEASE: Record<DiseaseType, string> = {
   breast: 'BI-RADS',
   lung: 'Lung-RADS',
 };
-
-const DEMO_PROFILE_ID = 'prototype-profile-self';
-
-const DEMO_MATCH_LESIONS: DemoLesion[] = [
-  {
-    id: 'prototype-lesion-thyroid-left',
-    profile_id: DEMO_PROFILE_ID,
-    disease_type: 'thyroid',
-    label: '左叶中下段结节',
-    location: '左叶中下段',
-    is_archived: 0,
-  },
-  {
-    id: 'prototype-lesion-thyroid-right',
-    profile_id: DEMO_PROFILE_ID,
-    disease_type: 'thyroid',
-    label: '右叶结节',
-    location: '右叶',
-    is_archived: 0,
-  },
-];
-
-const DEMO_MATCH_EXAMS = new Map<string, any[]>([
-  ['prototype-lesion-thyroid-left', [{ size_x: 7.8, tirads: '3', exam_date: '2023-09-10' }]],
-  ['prototype-lesion-thyroid-right', [{ size_x: 5.2, tirads: '2', exam_date: '2023-03-05' }]],
-]);
-
-async function seedPrototypeSavedArchive(reportImages: ReturnType<typeof parseReportImageAssetsParam>) {
-  const lesionId = 'lesion-1';
-  const now = '2024-03-15T00:00:00.000Z';
-  await createLesion({
-    id: lesionId,
-    profile_id: DEMO_PROFILE_ID,
-    disease_type: 'thyroid',
-    label: '左叶中下段结节',
-    location: '左叶中下段',
-    is_archived: 0,
-  }).catch(() => null);
-
-  const exams = [
-    { id: 'prototype-exam-latest', exam_date: '2024-03-15', size_x: 8.3, size_y: 5.8, size_z: 6.1, border: '清晰', calcification: '无' },
-    { id: 'prototype-exam-previous', exam_date: '2023-09-10', size_x: 7.8, size_y: 5.2, size_z: 5.8, border: '尚清', calcification: '无明显钙化' },
-    { id: 'prototype-exam-baseline', exam_date: '2023-03-05', size_x: 7.1, size_y: null, size_z: null, border: '清楚', calcification: '无明显钙化' },
-  ];
-
-  for (const exam of exams) {
-    await createExamination({
-      id: exam.id,
-      lesion_id: lesionId,
-      exam_date: exam.exam_date,
-      hospital: '重庆市第一人民医院',
-      size_x: exam.size_x,
-      size_y: exam.size_y,
-      size_z: exam.size_z,
-      tirads: '3',
-      echo_type: '低回声',
-      border: exam.border,
-      calcification: exam.calcification,
-      blood_flow: '少量血流',
-      birads: null,
-      shape: null,
-      orientation: null,
-      lung_rads: null,
-      density: null,
-      morphology: null,
-      pleural_pull: null,
-      ai_raw_json: JSON.stringify({ prototypeRecognitionSeed: 'demo', createdAt: now }),
-      notes: null,
-    }).catch(() => null);
-  }
-
-  for (let i = 0; i < reportImages.length; i += 1) {
-    const image = reportImages[i]!;
-    await createReportImage({
-      id: `prototype-report-${i + 1}`,
-      examination_id: 'prototype-exam-latest',
-      uri: image.uri,
-      sort_order: i,
-      mime_type: image.mimeType,
-    }).catch(() => null);
-  }
-
-  await createReminder({
-    id: 'prototype-reminder-detail',
-    lesion_id: lesionId,
-    next_exam_date: '2024-09-15',
-    source: 'auto',
-    is_active: 1,
-  }).catch(() => null);
-
-  return { lesionId, examinationId: 'prototype-exam-latest' };
-}
-
-function isDemoSeed(value: unknown): boolean {
-  return (Array.isArray(value) ? value[0] : value) === 'demo';
-}
 
 function parseNumber(value: unknown) {
   if (typeof value === 'number') {
@@ -189,17 +88,15 @@ export default function MatchPage() {
     images?: string;
     lesionId?: string;
     debugFail?: string;
-    prototypeMatchSeed?: string;
   }>();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createNew, setCreateNew] = useState(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const queryClient = useQueryClient();
-  const demoSeed = isDemoSeed(params.prototypeMatchSeed);
-
   const { activeProfileId } = useActiveProfile();
-  const effectiveProfileId = demoSeed ? DEMO_PROFILE_ID : activeProfileId;
+  const { data: subscriptionStatus, isLoading: subscriptionLoading } = useSubscriptionStatus();
+  const effectiveProfileId = activeProfileId;
 
   const lesionIdParam = Array.isArray(params.lesionId) ? params.lesionId[0] : params.lesionId;
   const lockedLesionId = typeof lesionIdParam === 'string' && lesionIdParam ? lesionIdParam : null;
@@ -216,7 +113,7 @@ export default function MatchPage() {
     : diseaseTypeParam;
 
   const { data: storedLesions = [] } = useLesions(effectiveProfileId);
-  const lesions = useMemo(() => (demoSeed ? DEMO_MATCH_LESIONS : storedLesions), [demoSeed, storedLesions]);
+  const lesions = storedLesions;
   const lockedLesionFromList = useMemo(() => {
     if (!selectionLocked || !lockedLesionId) return null;
     return lesions.find((lesion) => lesion.id === lockedLesionId) ?? null;
@@ -242,28 +139,63 @@ export default function MatchPage() {
     queries: candidateLesions.map((lesion) => ({
       queryKey: ['examinations', 'lesion', lesion.id],
       queryFn: () => listExaminationsByLesion(lesion.id),
-      enabled: Boolean(lesion.id) && !demoSeed,
+      enabled: Boolean(lesion.id),
     })),
   });
+
+  const allCandidateExaminations = useMemo(() => {
+    return candidateLesions.flatMap((lesion, index) =>
+      (examinationResults[index]?.data ?? []).map((exam, examIndex) => ({
+        ...exam,
+        id: exam.id ?? `${lesion.id}-exam-${examIndex}`,
+        lesion_id: exam.lesion_id ?? lesion.id,
+        hospital: exam.hospital ?? null,
+        size_y: exam.size_y ?? null,
+        size_z: exam.size_z ?? null,
+        tirads: exam.tirads ?? null,
+        echo_type: exam.echo_type ?? null,
+        border: exam.border ?? null,
+        calcification: exam.calcification ?? null,
+        blood_flow: exam.blood_flow ?? null,
+        birads: exam.birads ?? null,
+        shape: exam.shape ?? null,
+        orientation: exam.orientation ?? null,
+        lung_rads: exam.lung_rads ?? null,
+        density: exam.density ?? null,
+        morphology: exam.morphology ?? null,
+        pleural_pull: exam.pleural_pull ?? null,
+        ai_raw_json: exam.ai_raw_json ?? null,
+        notes: exam.notes ?? null,
+        created_at: exam.created_at ?? exam.exam_date ?? '',
+        updated_at: exam.updated_at ?? exam.exam_date ?? '',
+      }))
+    );
+  }, [candidateLesions, examinationResults]);
 
   const lesionMatchInputs = useMemo(() => {
     return candidateLesions.map((lesion, index) => ({
       id: lesion.id,
       label: lesion.label,
       location: lesion.location,
-      latestSizeX: demoSeed
-        ? (DEMO_MATCH_EXAMS.get(lesion.id)?.[0]?.size_x ?? null)
-        : (examinationResults[index]?.data?.[0]?.size_x ?? null),
+      latestSizeX: examinationResults[index]?.data?.[0]?.size_x ?? null,
     }));
-  }, [candidateLesions, demoSeed, examinationResults]);
+  }, [candidateLesions, examinationResults]);
 
   const latestExamByLesionId = useMemo(() => {
     const map = new Map<string, any>();
     candidateLesions.forEach((lesion, index) => {
-      map.set(lesion.id, demoSeed ? (DEMO_MATCH_EXAMS.get(lesion.id)?.[0] ?? null) : (examinationResults[index]?.data?.[0] ?? null));
+      map.set(lesion.id, examinationResults[index]?.data?.[0] ?? null);
     });
     return map;
-  }, [candidateLesions, demoSeed, examinationResults]);
+  }, [candidateLesions, examinationResults]);
+
+  const examCountByLesionId = useMemo(() => {
+    const map = new Map<string, number>();
+    candidateLesions.forEach((lesion, index) => {
+      map.set(lesion.id, examinationResults[index]?.data?.length ?? 0);
+    });
+    return map;
+  }, [candidateLesions, examinationResults]);
 
   const recognized: Record<string, unknown> = useMemo(() => {
     if (!params.recognizedData) return {};
@@ -291,8 +223,15 @@ export default function MatchPage() {
   const reportImageUris = useMemo(() => reportImages.map((img) => img.uri), [reportImages]);
 
   const matches = useMemo(() => {
+    if (diseaseType) {
+      return scoreStoredLesionMatches(
+        { diseaseType, location, sizeX, rads: currentRads },
+        candidateLesions as Lesion[],
+        allCandidateExaminations
+      );
+    }
     return scoreLesionMatch(location, sizeX, lesionMatchInputs);
-  }, [lesionMatchInputs, location, sizeX]);
+  }, [allCandidateExaminations, candidateLesions, currentRads, diseaseType, lesionMatchInputs, location, sizeX]);
 
   const matchSelection = useMemo(() => buildLesionMatchSelection(matches), [matches]);
   const autoMatch = matches.find((match) => match.lesionId === matchSelection.autoSelectedLesionId) ?? null;
@@ -319,17 +258,15 @@ export default function MatchPage() {
       setError('请选择病灶');
       return;
     }
+    if (subscriptionLoading || !subscriptionStatus) {
+      setError('权益状态加载中，请稍后再试');
+      return;
+    }
 
     setError('');
     setSaving(true);
 
     try {
-      if (demoSeed) {
-        const result = await seedPrototypeSavedArchive(reportImages);
-        router.replace(`/lesion/${result.lesionId}?prototypeDetailSeed=demo&recordSaved=demo`);
-        return;
-      }
-
       const debugFail = params.debugFail === 'report_images' || params.debugFail === 'reminder' ? params.debugFail : undefined;
       const result = await saveMatchRecordAtomic({
         activeProfileId: effectiveProfileId,
@@ -339,6 +276,7 @@ export default function MatchPage() {
         rawRecognizedJson: params.recognizedData,
         reportImages,
         selectedLesionId: effectiveSelected,
+        subscriptionStatus,
         debugFailStep: debugFail as any,
       });
 
@@ -374,7 +312,6 @@ export default function MatchPage() {
     }
   }, [
     createNew,
-    demoSeed,
     diseaseType,
     effectiveProfileId,
     effectiveSelected,
@@ -383,26 +320,9 @@ export default function MatchPage() {
     queryClient,
     recognized,
     reportImages,
+    subscriptionLoading,
+    subscriptionStatus,
   ]);
-
-  if (Platform.OS === 'web' && demoSeed) {
-    return (
-      <div className="screen active" style={{ display: 'flex' }}>
-        <div className="topbar"><button className="tb-back" onClick={() => router.back()}>← 返回</button><span className="tb-page">匹配病灶</span><span className="tb-step">步骤 3/3</span></div>
-        <div className="scrl">
-          <div className="this-c"><div className="this-l">本次识别结果</div><div className="this-b"><div className="this-ic">甲</div><div><div className="this-nm">甲状腺结节</div><div className="this-mt">左叶中下段 · TI-RADS 3级</div><div className="tags"><span className="tag">8.3mm</span><span className="tag">低回声</span><span className="tag">边界清晰</span></div></div></div></div>
-          <div className="sec">AI 建议匹配</div>
-          <div style={{ fontSize: 11, color: 'var(--hint)', marginBottom: 8, marginTop: -4 }}>根据部位和大小自动匹配，请确认</div>
-          <div className="mrec"><div className="mhr"><div><div className="mn">左叶中下段结节</div><div className="mloc">甲状腺 · 左叶 · 已有3次记录</div></div><div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><span className="rb">AI推荐</span><div className="ro"><div className="rod" /></div></div></div><div className="mb2"><div className="ms"><div className="mv">7.8mm</div><div className="ml">上次大小</div></div><div className="ms" style={{ paddingLeft: 9 }}><div className="mv">TI-RADS 3</div><div className="ml">上次分级</div></div><div className="ms" style={{ paddingLeft: 9 }}><div className="mv">2023-09</div><div className="ml">上次检查</div></div></div><div className="cbw"><span className="cl">匹配置信度</span><div className="ct"><div className="cf" /></div><span className="cv">92%</span></div></div>
-          <div className="div-row"><div className="div-line" /><span className="div-txt">或选择其他已有病灶</span><div className="div-line" /></div>
-          <div className="mm"><div className="mh2"><div><div className="mn">右叶结节</div><div className="mloc">甲状腺 · 右叶</div></div><div className="roff" /></div><div className="mb2"><div className="ms"><div className="mv">5.2mm</div><div className="ml">上次大小</div></div><div className="ms" style={{ paddingLeft: 9 }}><div className="mv">TI-RADS 2</div><div className="ml">上次分级</div></div><div className="ms" style={{ paddingLeft: 9 }}><div className="mv">2023-03</div><div className="ml">上次检查</div></div></div></div>
-          <div className="div-row"><div className="div-line" /><span className="div-txt">或</span><div className="div-line" /></div>
-          <div className="new-c"><div className="ni">+</div><div><div className="nt">新建病灶</div><div className="ns">这是一个新发现的结节</div></div></div>
-        </div>
-        <div className="bot-bar"><div className="selh"><div className="seld" /><span>已选择：左叶中下段结节</span></div><button className="btn-full" onClick={() => router.replace('/lesion/lesion-1?prototypeDetailSeed=demo&recordSaved=demo')}>确认匹配，完成录入</button></div>
-      </div>
-    );
-  }
 
   return (
     <SafeAreaView className="flex-1 bg-page-bg">
@@ -502,7 +422,7 @@ export default function MatchPage() {
                     <View className="flex-1">
                       <Text className="text-sm font-semibold text-primary">{match.lesionLabel}</Text>
                       <Text className="mt-1 text-xs text-neutral-text">
-                        {diseaseLabel} · {lesionSide(candidate?.location ?? '')}{recommended ? ` · 已有${latestExam ? '3' : '0'}次记录` : ''}
+                        {diseaseLabel} · {lesionSide(candidate?.location ?? '')}{recommended ? ` · 已有${examCountByLesionId.get(match.lesionId) ?? 0}次记录` : ''}
                       </Text>
                     </View>
                     <View className="flex-row items-center gap-2">
@@ -579,12 +499,13 @@ export default function MatchPage() {
         </View>
         {error ? <Text className="mb-2 text-xs text-new-text">{error}</Text> : null}
         <Button
-          title={saving ? '入库中...' : '确认匹配，完成录入'}
+          title={saving ? '入库中...' : subscriptionLoading ? '权益加载中...' : '确认匹配，完成录入'}
           fullWidth
           disabled={
             (!effectiveSelected && !createNew) ||
             !effectiveProfileId ||
-            saving
+            saving ||
+            subscriptionLoading
           }
           onPress={() => void save()}
         />

@@ -15,6 +15,7 @@ jest.mock('@tanstack/react-query', () => {
   return {
     ...actual,
     useQueries: jest.fn(() => []),
+    useQuery: jest.fn(() => ({ data: undefined, isLoading: false })),
   };
 });
 

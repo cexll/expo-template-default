@@ -89,7 +89,12 @@ describe('RecognizePage', () => {
       fields: {
         location: { value: '左叶中下段', confidence: 0.9 },
         size_x: { value: '8.3', confidence: 0.92 },
+        size_y: { value: '5.8', confidence: 0.91 },
+        size_z: { value: '6.1', confidence: 0.9 },
         tirads: { value: '3', confidence: 0.85 },
+        blood_flow: { value: '少许血流', confidence: 0.82 },
+        exam_date: { value: '2024-03-15', confidence: 0.88 },
+        hospital: { value: '北京协和医院', confidence: 0.87 },
       },
     });
 
@@ -104,6 +109,17 @@ describe('RecognizePage', () => {
 
     expect(screen.getByText('左叶中下段')).toBeTruthy();
     expect(screen.getByText('8.3')).toBeTruthy();
+    expect(screen.getByText('大小(宽)')).toBeTruthy();
+    expect(screen.getByText('5.8')).toBeTruthy();
+    expect(screen.getByText('大小(高)')).toBeTruthy();
+    expect(screen.getByText('6.1')).toBeTruthy();
+    expect(screen.getByText('血流')).toBeTruthy();
+    expect(screen.getByText('少许血流')).toBeTruthy();
+    expect(screen.getByText('检查日期')).toBeTruthy();
+    expect(screen.getByText('2024-03-15')).toBeTruthy();
+    expect(screen.getByText('医院')).toBeTruthy();
+    expect(screen.getByText('北京协和医院')).toBeTruthy();
+    expect(screen.getByText('9/12 已确认')).toBeTruthy();
 
     fireEvent.press(screen.getByText('下一步：匹配病灶'));
 
@@ -130,7 +146,12 @@ describe('RecognizePage', () => {
     expect(recognized).toMatchObject({
       location: '左叶中下段',
       size_x: '8.3',
+      size_y: '5.8',
+      size_z: '6.1',
       tirads: '3',
+      blood_flow: '少许血流',
+      exam_date: '2024-03-15',
+      hospital: '北京协和医院',
     });
   });
 
@@ -497,9 +518,9 @@ describe('RecognizePage', () => {
     }, { timeout: 5000 });
 
     expect(screen.getByText('超声报告')).toBeTruthy();
-    expect(screen.getByText('共2张 · 2024-03-15')).toBeTruthy();
+    expect(screen.getByText('共2张 · 未记录日期')).toBeTruthy();
     expect(screen.getByText('已识别字段')).toBeTruthy();
-    expect(screen.getByText('5/7 已确认')).toBeTruthy();
+    expect(screen.getByText('5/12 已确认')).toBeTruthy();
     expect(screen.getByText('结节类型')).toBeTruthy();
     expect(screen.getByText('甲状腺')).toBeTruthy();
     expect(screen.getByText('TI-RADS')).toBeTruthy();
@@ -516,38 +537,6 @@ describe('RecognizePage', () => {
     expect(screen.getByText('4a级')).toBeTruthy();
     fireEvent.press(screen.getByText('4a级'));
     expect(screen.getByDisplayValue('4a级')).toBeTruthy();
-  });
-
-  it('renders prototype recognition seed without backend AI and carries match seed forward', async () => {
-    const { useLocalSearchParams, router } = require('expo-router');
-
-    (useLocalSearchParams as jest.Mock).mockReturnValue({
-      prototypeRecognitionSeed: 'demo',
-    });
-
-    mockUseSubscriptionStatus.mockReturnValue({ data: null, isLoading: true });
-
-    render(<RecognizePage />);
-
-    await waitFor(() => {
-      expect(screen.getByText('5/7 已确认')).toBeTruthy();
-    }, { timeout: 5000 });
-
-    expect(screen.getByText('超声报告')).toBeTruthy();
-    expect(screen.getByText('共2张 · 2024-03-15')).toBeTruthy();
-    expect(screen.getByText('左叶中下段')).toBeTruthy();
-    expect(mockApiPost).not.toHaveBeenCalled();
-
-    fireEvent.changeText(screen.getByPlaceholderText('请输入大小'), '8.3');
-    fireEvent.changeText(screen.getByPlaceholderText('请输入钙化'), '无');
-    fireEvent.press(screen.getByText('下一步：匹配病灶'));
-
-    await waitFor(() => {
-      expect(router.push).toHaveBeenCalledTimes(1);
-    }, { timeout: 5000 });
-
-    const arg = (router.push as jest.Mock).mock.calls[0]?.[0];
-    expect(arg.params.prototypeMatchSeed).toBe('demo');
   });
 
   it('progress counts only confirmed or high-confidence valid fields', async () => {

@@ -12,14 +12,11 @@ import { applyReminderSideEffects } from '@/lib/reminder-side-effects';
 
 const mockPush = jest.fn();
 
-const mockUseLocalSearchParams = jest.fn();
-
 jest.mock('expo-router', () => ({
   router: {
     push: mockPush,
     replace: jest.fn(),
   },
-  useLocalSearchParams: () => mockUseLocalSearchParams(),
 }));
 
 jest.mock('@/lib/db/queries/profiles', () => ({
@@ -97,7 +94,6 @@ describe('RemindersPage UI parity', () => {
   });
 
   beforeEach(() => {
-    mockUseLocalSearchParams.mockReturnValue({});
     applyReminderSideEffectsMock.mockResolvedValue({
       notification: { supported: false, permission: 'unsupported' },
       sync: { ok: true, sent: 1 },
@@ -159,24 +155,6 @@ describe('RemindersPage UI parity', () => {
     ]);
   });
 
-  it('renders UI-005 prototype reminder state without stored profile data', async () => {
-    mockUseLocalSearchParams.mockReturnValue({ prototypeUi005Seed: 'demo' });
-    listProfilesMock.mockResolvedValue([]);
-    listLesionsByProfileMock.mockResolvedValue([]);
-    listActiveRemindersByProfileMock.mockResolvedValue([]);
-    listLatestExaminationsByProfileMock.mockResolvedValue([]);
-
-    renderWithQueryClient(<RemindersPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText('随访提醒')).toBeTruthy();
-      expect(screen.getByText('左叶中下段结节')).toBeTruthy();
-      expect(screen.getByText('右乳10点钟结节')).toBeTruthy();
-      expect(screen.getByText('右上叶前段结节')).toBeTruthy();
-      expect(screen.getAllByText('层级（规划）').length).toBeGreaterThan(0);
-    });
-  });
-
   it("splits reminders into '即将到期' and '其他提醒' and includes the unset reminder path", async () => {
     renderWithQueryClient(<RemindersPage />);
 
@@ -216,28 +194,6 @@ describe('RemindersPage UI parity', () => {
     expect(deactivateReminderMock).not.toHaveBeenCalled();
   });
 
-  it('exposes a deterministic INT-003 sync/readback browser probe only when seeded', async () => {
-    mockUseLocalSearchParams.mockReturnValue({ prototypeInt003Seed: 'demo' });
-    apiGetMock.mockResolvedValueOnce({ reminders: [{ lesion_label: '左叶结节', next_exam_date: '2026-05-01' }] });
-
-    renderWithQueryClient(<RemindersPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText('VAL-INT-003 浏览器证据探针')).toBeTruthy();
-      expect(screen.getByText('本地提醒：左叶结节 · ' + isoDaysFromNow(5) + ' · 自动推导')).toBeTruthy();
-    });
-
-    fireEvent.press(screen.getByText('同步并读回后端提醒'));
-
-    await waitFor(() => {
-      expect(apiPostMock).toHaveBeenCalledWith('/api/v1/reminders/sync', {
-        reminders: [{ lesion_label: '左叶结节', next_exam_date: isoDaysFromNow(5) }],
-      });
-      expect(apiGetMock).toHaveBeenCalledWith('/api/v1/reminders');
-      expect(screen.getByText('后端读回：左叶结节 · 2026-05-01')).toBeTruthy();
-    });
-  });
-
   it('retains success feedback after saving an updated reminder date', async () => {
     updateReminderMock.mockResolvedValue(undefined as any);
 
@@ -256,6 +212,10 @@ describe('RemindersPage UI parity', () => {
         next_exam_date: '2026-05-01',
         source: 'manual',
         is_active: 1,
+        remind1m_sent: 0,
+        remind1w_sent: 0,
+        remind3d_sent: 0,
+        remind0d_sent: 0,
       });
       expect(applyReminderSideEffectsMock).toHaveBeenCalled();
     });

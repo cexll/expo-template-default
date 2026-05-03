@@ -18,6 +18,10 @@ jest.mock('@/hooks/useProfiles', () => ({
     mutateAsync: mockMutateAsync,
     isPending: false,
   }),
+  useCreateBackendProfile: () => ({
+    mutateAsync: mockMutateAsync,
+    isPending: false,
+  }),
 }));
 
 jest.mock('expo-router', () => ({

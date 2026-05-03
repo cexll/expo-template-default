@@ -2,7 +2,6 @@ import { useEffect, useMemo } from 'react';
 import { router, usePathname, useSegments } from 'expo-router';
 
 import { useProfiles } from '@/hooks/useProfiles';
-import { hasPrototypeSeedParam } from '@/lib/prototype-review';
 import { useAuth } from '@/providers/auth-provider';
 
 function getRootSegment(segments: string[]) {
@@ -22,28 +21,15 @@ function normalizePathname(pathname: string | null) {
   return pathname.replace(/\/+$/, '') || '/';
 }
 
-function isPrototypeReviewRoute(pathname: string) {
-  return pathname === '/record/upload' || pathname === '/record/recognize' || pathname === '/record/match';
-}
-
-function isPrototypeHomeReviewRoute(pathname: string) {
-  return pathname === '/' && hasPrototypeSeedParam('prototypeHomeSeed');
-}
-
-function isPrototypeDetailReviewRoute(pathname: string) {
-  return /^\/lesion\/[^/]+(?:\/compare)?$/.test(pathname) && hasPrototypeSeedParam('prototypeDetailSeed');
-}
-
-function isPrototypeUi005ReviewRoute(pathname: string) {
-  if (!hasPrototypeSeedParam('prototypeUi005Seed')) return false;
-  return (
-    /^\/summary\/[^/]+$/.test(pathname) ||
-    pathname === '/paywall' ||
-    pathname === '/reminders' ||
-    pathname === '/settings' ||
-    pathname === '/subscription' ||
-    pathname === '/subscription/success'
-  );
+function isValidationUiEvidenceRoute(pathname: string) {
+  if (pathname !== '/validation-ui-evidence') return false;
+  try {
+    const search = globalThis.location?.search ?? '';
+    const hash = globalThis.location?.hash ?? '';
+    return `${search}&${hash}`.includes('validationUiSeed=repository');
+  } catch {
+    return false;
+  }
 }
 
 export function AuthGuard() {
@@ -53,10 +39,7 @@ export function AuthGuard() {
   const { data: profiles, isLoading: profilesLoading } = useProfiles({ enabled: isAuthenticated });
 
   const rootSegment = useMemo(() => getRootSegment(segments), [segments]);
-  const prototypeReviewRoute = isPrototypeReviewRoute(pathname);
-  const prototypeHomeReviewRoute = isPrototypeHomeReviewRoute(pathname);
-  const prototypeDetailReviewRoute = isPrototypeDetailReviewRoute(pathname);
-  const prototypeUi005ReviewRoute = isPrototypeUi005ReviewRoute(pathname);
+  const validationUiEvidenceRoute = isValidationUiEvidenceRoute(pathname);
   const inAuthGroup = rootSegment === '(auth)' || pathname === '/login' || pathname === '/onboarding';
   const onboardingRoute = isOnboardingRoute(segments) || pathname === '/onboarding';
 
@@ -76,7 +59,7 @@ export function AuthGuard() {
     if (!rootSegment && !pathname) return;
 
     if (!isAuthenticated) {
-      if (!inAuthGroup && !prototypeHomeReviewRoute && !prototypeReviewRoute && !prototypeDetailReviewRoute && !prototypeUi005ReviewRoute) {
+      if (!inAuthGroup && !validationUiEvidenceRoute) {
         router.replace('/(auth)/login');
       }
       return;
@@ -85,7 +68,7 @@ export function AuthGuard() {
     if (!onboardingDecisionReady) return;
 
     if (needsOnboarding) {
-      if (!onboardingRoute && !prototypeHomeReviewRoute && !prototypeReviewRoute && !prototypeDetailReviewRoute && !prototypeUi005ReviewRoute) {
+      if (!onboardingRoute && !validationUiEvidenceRoute) {
         router.replace('/(auth)/onboarding');
       }
       return;
@@ -100,11 +83,8 @@ export function AuthGuard() {
     onboardingDecisionReady,
     onboardingRoute,
     pathname,
-    prototypeDetailReviewRoute,
-    prototypeHomeReviewRoute,
-    prototypeReviewRoute,
-    prototypeUi005ReviewRoute,
     rootSegment,
+    validationUiEvidenceRoute,
     segments,
   ]);
 

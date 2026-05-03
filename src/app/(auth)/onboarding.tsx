@@ -1,13 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import { Platform, StyleSheet } from 'react-native';
-import { useCreateProfile, useProfiles } from '@/hooks/useProfiles';
+import { useCreateBackendProfile, useProfiles } from '@/hooks/useProfiles';
 import { useAuth } from '@/providers/auth-provider';
 import { Pressable, SafeAreaView, Text, TextInput, View } from '@/tw';
-
-function makeId(prefix: string) {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-}
 
 export default function OnboardingPage() {
   const [nickname, setNickname] = useState('本人');
@@ -17,7 +13,7 @@ export default function OnboardingPage() {
 
   const { isAuthenticated, user } = useAuth();
   const { data: profiles = [] } = useProfiles({ enabled: isAuthenticated });
-  const createProfile = useCreateProfile();
+  const createProfile = useCreateBackendProfile();
 
   const preview = useMemo(() => {
     const trimmedNickname = nickname.trim();
@@ -60,13 +56,17 @@ export default function OnboardingPage() {
     setError('');
 
     try {
+      if (!user?.id) {
+        setError('无法读取登录用户，请重新登录');
+        return;
+      }
+
       await createProfile.mutateAsync({
-        id: user?.id ? `profile_${user.id.replace(/[^a-zA-Z0-9_-]/g, '_')}` : makeId('profile'),
+        sessionUserId: user.id,
         nickname: nickname.trim(),
         gender,
-        birth_year: Number(birthYear),
-        avatar_uri: null,
-        sort_order: profiles.length,
+        birthYear: Number(birthYear),
+        existingCount: profiles.length,
       });
 
       router.replace('/(main)');

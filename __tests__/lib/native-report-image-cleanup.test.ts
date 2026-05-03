@@ -128,6 +128,17 @@ function makeStubDb(options?: { failOnReminderWrite?: boolean }) {
         }
       }
     }),
+    getFirstAsync: jest.fn(async (sql: string, ...params: any[]) => {
+      if (sql.includes('COUNT(*) AS count') && sql.includes('FROM lesions')) {
+        const [profileId] = params;
+        return { count: state.lesions.filter((lesion) => lesion.profile_id === profileId && lesion.is_archived === 0).length };
+      }
+      if (sql.includes('COUNT(*) AS count') && sql.includes('FROM examinations')) {
+        const [lesionId] = params;
+        return { count: state.examinations.filter((exam) => exam.lesion_id === lesionId).length };
+      }
+      return null;
+    }),
     getAllAsync: jest.fn(async (sql: string, ...params: any[]) => {
       if (sql.includes('FROM reminders') && sql.includes('WHERE lesion_id = ?')) {
         const [lesionId] = params;

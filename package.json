@@ -30,6 +30,7 @@
     "prepare": "husky",
     "check": "npm run lint && npm run typecheck",
     "pixel:diff": "node ./scripts/pixel-diff.js",
+    "validation:ui-evidence": "node ./scripts/validation-ui-evidence.js",
     "reset-project": "node ./scripts/reset-project.js"
   },
   "lint-staged": {
