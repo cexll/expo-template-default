@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { Linking } from 'react-native';
 import { router } from 'expo-router';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -18,7 +19,18 @@ type CreateOrderResponse = {
   id?: string;
   amount?: number;
   currency?: string;
+  provider_params?: string;
 };
+
+function parseProviderParams(value: string | undefined): { pay_url?: string; code_url?: string; mode?: string } {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
 
 export default function SubscriptionPage() {
   const { user } = useAuth();
@@ -74,6 +86,13 @@ export default function SubscriptionPage() {
       };
       if (typeof data?.amount === 'number') params.amount = String(data.amount);
       if (typeof data?.currency === 'string') params.currency = data.currency;
+      const providerParams = parseProviderParams(data?.provider_params);
+      if (providerParams.pay_url) {
+        await Linking.openURL(providerParams.pay_url);
+      }
+      if (providerParams.code_url) {
+        params.payment_url = providerParams.code_url;
+      }
 
       router.push({
         pathname: '/subscription/success',

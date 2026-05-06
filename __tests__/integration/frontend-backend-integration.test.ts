@@ -91,6 +91,11 @@ function makeIntegrationDb(initial?: Partial<DbState>) {
         const reminder = state.reminders.find((item) => item.id === id);
         if (reminder) reminder.is_active = 0;
       }
+      if (sql.includes('UPDATE report_images SET object_key')) {
+        const [object_key, size_bytes, sha256, id] = params;
+        const image = state.report_images.find((item) => item.id === id);
+        if (image) Object.assign(image, { object_key, size_bytes, sha256, updated_at: '2026-04-25T00:00:00.000Z' });
+      }
     }),
     getFirstAsync: jest.fn(async (sql: string, ...params: any[]) => {
       if (sql.includes('COUNT(*) AS count') && sql.includes('FROM lesions')) {
@@ -181,7 +186,7 @@ jest.mock('@/lib/api', () => ({
   },
 }));
 
-const apiMock = api as unknown as { get: jest.Mock; post: jest.Mock };
+const apiMock = api as unknown as { get: jest.Mock; post: jest.Mock; upload: jest.Mock };
 const dbMock = require('@/lib/db') as { __setMockDatabase: (db: any) => void };
 
 describe('frontend/backend integration acceptance', () => {
@@ -407,6 +412,7 @@ describe('frontend/backend integration acceptance', () => {
     expect(freeResult).toEqual({ skipped: true, reason: 'not_entitled' });
     expect(apiMock.post).not.toHaveBeenCalled();
 
+    apiMock.upload.mockResolvedValueOnce({ object_key: 'reports/uploaded/image-local-only.png', mime_type: 'image/png', size_bytes: 6543, sha256: 'local123' });
     apiMock.post.mockResolvedValueOnce({ synced_count: 6 });
     apiMock.get.mockResolvedValueOnce({
       profiles: [{ local_id: 'profile-1', display_name: '本人', gender: 'female', birth_year: 1985, sync_version: 7 }],
@@ -452,6 +458,17 @@ describe('frontend/backend integration acceptance', () => {
           size_bytes: 3210,
           sha256: 'abc123',
           sort_order: 3,
+          sync_version: 11,
+          updated_at: '2026-04-25T00:00:00.000Z',
+        },
+        {
+          local_id: 'image-local-only',
+          examination_local_id: 'exam-1',
+          object_key: 'reports/uploaded/image-local-only.png',
+          mime_type: 'image/png',
+          size_bytes: 6543,
+          sha256: 'local123',
+          sort_order: 4,
           sync_version: 11,
           updated_at: '2026-04-25T00:00:00.000Z',
         },

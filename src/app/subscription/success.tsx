@@ -11,6 +11,7 @@ import {
 } from '@/lib/subscription/order-context';
 import { useAuth } from '@/providers/auth-provider';
 import { SafeAreaView, Text, View } from '@/tw';
+import { Linking } from 'react-native';
 
 function pickParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -31,6 +32,7 @@ export default function PaymentSuccessPage() {
     provider?: string;
     amount?: string;
     currency?: string;
+    payment_url?: string;
   }>();
 
   const orderId = pickParam(params.order_id) ?? '';
@@ -38,6 +40,7 @@ export default function PaymentSuccessPage() {
   const requestedProvider = pickParam(params.provider);
   const requestedAmount = pickParam(params.amount);
   const requestedCurrency = pickParam(params.currency);
+  const paymentUrl = pickParam(params.payment_url);
   const { data: status, error, refetch } = useSubscriptionStatus(accountKey);
   const orderContext = orderId ? readPendingSubscriptionOrderContext(orderId, accountKey) : null;
 
@@ -139,6 +142,9 @@ export default function PaymentSuccessPage() {
         ) : null}
 
         {error instanceof Error ? <Text className="mb-3 text-xs text-neutral-text">订阅状态获取失败：{error.message}</Text> : null}
+        {!isCurrentOrderActive && paymentUrl ? (
+          <Button title="继续支付" fullWidth onPress={() => void Linking.openURL(paymentUrl)} className="mb-3" />
+        ) : null}
         <Button title="开始使用" fullWidth onPress={() => router.replace('/(main)')} />
       </View>
     </SafeAreaView>

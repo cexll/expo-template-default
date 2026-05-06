@@ -89,6 +89,13 @@ type CloudArchivePayload = {
   }[];
 };
 
+type ReportImageUploadReply = {
+  object_key?: string;
+  mime_type?: string;
+  size_bytes?: number;
+  sha256?: string;
+};
+
 function optionalText(value: string | null | undefined) {
   return typeof value === 'string' ? value : '';
 }
@@ -119,12 +126,71 @@ function isDurableObjectKey(value: string | null | undefined) {
   return key.length <= 512;
 }
 
+async function uriToBlob(uri: string, mimeType: string | null): Promise<Blob> {
+  if (uri.startsWith('data:')) {
+    const match = /^data:([^;,]+)?(?:;base64)?,(.*)$/s.exec(uri);
+    if (!match) throw new Error('报告图片 data URL 无效');
+    const type = match[1] || mimeType || 'application/octet-stream';
+    const isBase64 = uri.includes(';base64,');
+    const payload = isBase64 ? (match[2] ?? '') : decodeURIComponent(match[2] ?? '');
+    const bytes =
+      typeof Buffer !== 'undefined'
+        ? Buffer.from(payload, isBase64 ? 'base64' : 'utf8')
+        : Uint8Array.from(atob(payload), (char) => char.charCodeAt(0));
+    return new Blob([bytes], { type });
+  }
+  const res = await fetch(uri);
+  if (!res.ok) throw new Error('读取报告图片失败');
+  const blob = await res.blob();
+  if (mimeType && blob.type !== mimeType) {
+    return new Blob([blob], { type: mimeType });
+  }
+  return blob;
+}
+
+async function uploadMissingReportImages(reportImages: ReportImage[]): Promise<ReportImage[]> {
+  const db = await getDatabase();
+  const next = [...reportImages];
+
+  for (let i = 0; i < next.length; i += 1) {
+    const image = next[i];
+    if (!image || isDurableObjectKey(image.object_key)) continue;
+    if (!image.uri || isDurableObjectKey(image.uri)) continue;
+
+    const form = new FormData();
+    const blob = await uriToBlob(image.uri, image.mime_type);
+    form.append('file', blob, `${image.id}.${(image.mime_type ?? 'image/jpeg').includes('png') ? 'png' : 'jpg'}`);
+    if (image.mime_type) form.append('mime_type', image.mime_type);
+
+    const uploaded = await api.upload<ReportImageUploadReply>('/api/v1/archive/report-images/upload', form);
+    if (!uploaded.object_key || !isDurableObjectKey(uploaded.object_key)) {
+      throw new Error('报告图片上传失败：服务端未返回有效对象键');
+    }
+    await db.runAsync(
+      "UPDATE report_images SET object_key = ?, size_bytes = ?, sha256 = ?, updated_at = datetime('now') WHERE id = ?;",
+      uploaded.object_key,
+      uploaded.size_bytes ?? image.size_bytes ?? 0,
+      uploaded.sha256 ?? image.sha256 ?? null,
+      image.id
+    );
+    next[i] = {
+      ...image,
+      object_key: uploaded.object_key,
+      size_bytes: uploaded.size_bytes ?? image.size_bytes,
+      sha256: uploaded.sha256 ?? image.sha256,
+      updated_at: image.updated_at,
+    };
+  }
+
+  return next;
+}
+
 export async function buildCloudArchivePayload(): Promise<CloudArchivePayload> {
   const db = await getDatabase();
   const profiles = await db.getAllAsync<Profile>('SELECT * FROM profiles ORDER BY created_at ASC;');
   const lesions = await db.getAllAsync<Lesion>('SELECT * FROM lesions ORDER BY created_at ASC;');
   const examinations = await db.getAllAsync<Examination>('SELECT * FROM examinations ORDER BY exam_date ASC, created_at ASC;');
-  const reportImages = await db.getAllAsync<ReportImage>('SELECT * FROM report_images ORDER BY created_at ASC;');
+  const reportImages = await uploadMissingReportImages(await db.getAllAsync<ReportImage>('SELECT * FROM report_images ORDER BY created_at ASC;'));
   const reminders = await db.getAllAsync<SyncableReminder>('SELECT * FROM reminders ORDER BY next_exam_date ASC, created_at ASC;');
   const tombstones = await db.getAllAsync<ArchiveTombstone>('SELECT * FROM archive_tombstones ORDER BY deleted_at ASC, created_at ASC;').catch(() => []);
 

@@ -20,6 +20,16 @@ const WebCircle = 'circle' as unknown as React.ComponentType<{ cx: string; cy: s
 const WebPath = 'path' as unknown as React.ComponentType<{ d: string }>;
 
 const PHONE_PATTERN = /^1[3-9]\d{9}$/;
+const WECHAT_OAUTH_STATE_KEY = 'healthArchiveWechatOAuthState';
+
+function createOAuthState() {
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 export default function LoginPage() {
   const [phone, setPhone] = useState('');
@@ -32,7 +42,32 @@ export default function LoginPage() {
   const [wechatError, setWechatError] = useState('');
   const [wechatLoading, setWechatLoading] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const handledWechatCodeRef = useRef<string | null>(null);
   const { signInWithSms, signInWithWechat } = useAuth();
+
+  useEffect(() => {
+    const codeParam =
+      Platform.OS === 'web' && typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('code')
+        : null;
+    if (!codeParam || wechatLoading) return;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const search = new URLSearchParams(window.location.search);
+      const stateParam = search.get('state');
+      const expectedState = window.sessionStorage?.getItem(WECHAT_OAUTH_STATE_KEY);
+      window.sessionStorage?.removeItem(WECHAT_OAUTH_STATE_KEY);
+      if (!stateParam || !expectedState || stateParam !== expectedState) {
+        setWechatError('微信登录状态校验失败，请重新发起登录');
+        return;
+      }
+    }
+    if (handledWechatCodeRef.current === codeParam) return;
+    handledWechatCodeRef.current = codeParam;
+    setWechatLoading(true);
+    signInWithWechat(codeParam)
+      .catch((e: unknown) => setWechatError(e instanceof Error ? e.message : '微信登录失败'))
+      .finally(() => setWechatLoading(false));
+  }, [signInWithWechat, wechatLoading]);
 
   useEffect(() => {
     return () => {
@@ -94,6 +129,16 @@ export default function LoginPage() {
   }, [code, phone, signInWithSms]);
 
   const openWechat = useCallback(() => {
+    if (Platform.OS === 'web') {
+      const appId = process.env.EXPO_PUBLIC_WECHAT_OAUTH_APP_ID;
+      if (appId && typeof window !== 'undefined') {
+        const state = createOAuthState();
+        window.sessionStorage?.setItem(WECHAT_OAUTH_STATE_KEY, state);
+        const redirect = encodeURIComponent(window.location.origin + '/login');
+        window.location.href = `https://open.weixin.qq.com/connect/qrconnect?appid=${encodeURIComponent(appId)}&redirect_uri=${redirect}&response_type=code&scope=snsapi_login&state=${encodeURIComponent(state)}#wechat_redirect`;
+        return;
+      }
+    }
     setWechatError('');
     setWechatCode('');
     setWechatVisible(true);
