@@ -111,6 +111,14 @@ function reminderFlag(reminder: SyncableReminder, key: 'remind1m_sent' | 'remind
   return intFlag(reminder[key]) ?? false;
 }
 
+function isDurableObjectKey(value: string | null | undefined) {
+  const key = optionalText(value).trim();
+  if (!key) return false;
+  if (key.startsWith('/') || key.includes('..') || key.includes('\\')) return false;
+  if (/^(?:data|file|blob|content|local|http|https):/i.test(key)) return false;
+  return key.length <= 512;
+}
+
 export async function buildCloudArchivePayload(): Promise<CloudArchivePayload> {
   const db = await getDatabase();
   const profiles = await db.getAllAsync<Profile>('SELECT * FROM profiles ORDER BY created_at ASC;');
@@ -167,10 +175,10 @@ export async function buildCloudArchivePayload(): Promise<CloudArchivePayload> {
       sync_version: syncVersion(exam.sync_version),
       updated_at: exam.updated_at,
     })),
-    report_images: reportImages.map((image) => ({
+    report_images: reportImages.filter((image) => isDurableObjectKey(image.object_key)).map((image) => ({
       local_id: image.id,
       examination_local_id: image.examination_id,
-      object_key: optionalText(image.object_key) || image.uri,
+      object_key: optionalText(image.object_key),
       mime_type: optionalText(image.mime_type),
       size_bytes: syncVersion(image.size_bytes),
       sha256: optionalText(image.sha256),

@@ -395,7 +395,10 @@ describe('frontend/backend integration acceptance', () => {
       lesions: [{ id: 'lesion-1', profile_id: 'profile-1', disease_type: 'thyroid', label: '左叶结节', location: '左叶', is_archived: 1, sync_version: 8, updated_at: '2026-04-25T00:00:00.000Z' }],
       examinations: [{ id: 'exam-1', lesion_id: 'lesion-1', exam_date: '2026-04-25', hospital: '市医院', size_x: 8.3, size_y: 4.2, size_z: 3.1, tirads: 'TI-RADS 4A', echo_type: '低回声', border: '欠清', calcification: '点状强回声', blood_flow: '少量', birads: null, shape: null, orientation: null, lung_rads: null, density: null, morphology: null, pleural_pull: null, ai_raw_json: '{"source":"ocr"}', notes: '甲状腺字段不可丢失', sync_version: 9, updated_at: '2026-04-25T00:00:00.000Z' }],
       reminders: [{ id: 'reminder-1', lesion_id: 'lesion-1', next_exam_date: '2026-10-25', source: 'manual', is_active: 1, remind1m_sent: 1, remind1w_sent: 1, remind3d_sent: 0, remind0d_sent: 0, sync_version: 10, updated_at: '2026-04-25T00:00:00.000Z' }],
-      report_images: [{ id: 'image-1', examination_id: 'exam-1', uri: 'reports/profile-1/exam-1/image-1.png', object_key: 'reports/profile-1/exam-1/image-1.png', mime_type: 'image/png', size_bytes: 3210, sha256: 'abc123', sort_order: 3, sync_version: 11, updated_at: '2026-04-25T00:00:00.000Z' }],
+      report_images: [
+        { id: 'image-1', examination_id: 'exam-1', uri: 'reports/profile-1/exam-1/image-1.png', object_key: '************************************', mime_type: 'image/png', size_bytes: 3210, sha256: 'abc123', sort_order: 3, sync_version: 11, updated_at: '2026-04-25T00:00:00.000Z' },
+        { id: 'image-local-only', examination_id: 'exam-1', uri: 'data:image/png;base64,LOCAL', object_key: null, mime_type: 'image/png', size_bytes: 6543, sha256: 'local123', sort_order: 4, sync_version: 11, updated_at: '2026-04-25T00:00:00.000Z' },
+      ],
       archive_tombstones: [{ entity_type: 'report_image', local_id: 'old-image-1', deleted_at: '2026-04-25T12:00:00.000Z', sync_version: 12 }],
     });
     dbMock.__setMockDatabase(db);
@@ -441,7 +444,17 @@ describe('frontend/backend integration acceptance', () => {
         }),
       ],
       report_images: [
-        expect.objectContaining({ local_id: 'image-1', object_key: 'reports/profile-1/exam-1/image-1.png', size_bytes: 3210, sha256: 'abc123', sort_order: 3, sync_version: 11 }),
+        {
+          local_id: 'image-1',
+          examination_local_id: 'exam-1',
+          object_key: expect.any(String),
+          mime_type: 'image/png',
+          size_bytes: 3210,
+          sha256: 'abc123',
+          sort_order: 3,
+          sync_version: 11,
+          updated_at: '2026-04-25T00:00:00.000Z',
+        },
       ],
       reminders: [
         expect.objectContaining({ local_id: 'reminder-1', source: 'manual', is_active: true, remind1m_sent: true, remind1w_sent: true, sync_version: 10 }),
